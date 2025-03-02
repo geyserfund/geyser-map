@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { MapContainer, TileLayer, GeoJSON, useMap } from 'react-leaflet';
+import { MapContainer, GeoJSON, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Project, ProjectCategory, ProjectStatus, ProjectSubCategory } from '@/types/project';
 import { getCountryCoordinates } from '@/utils/countryCoordinates';
@@ -34,19 +34,111 @@ const SetMapView = ({ center, zoom }: { center: [number, number], zoom: number }
   
   // Use a ref to track if we've already set the view for this center
   const hasSetViewRef = React.useRef(false);
+  const centerRef = React.useRef<[number, number]>(center);
+  const zoomRef = React.useRef<number>(zoom);
+  const isInitialRender = React.useRef(true);
+  
+  // Only update the view when the center or zoom actually changes
+  useEffect(() => {
+    // Check if the center or zoom has actually changed
+    const isSameCenter = centerRef.current[0] === center[0] && centerRef.current[1] === center[1];
+    const isSameZoom = zoomRef.current === zoom;
+    
+    if (!isSameCenter || !isSameZoom || isInitialRender.current) {
+      // Center or zoom has changed, update the refs and reset the view flag
+      centerRef.current = center;
+      zoomRef.current = zoom;
+      hasSetViewRef.current = false;
+      isInitialRender.current = false;
+    }
+  }, [center, zoom]);
   
   useEffect(() => {
-    // Reset the ref when center changes
-    hasSetViewRef.current = false;
-  }, [center]);
-  
-  useEffect(() => {
-    // Only set the view once per center change
+    // Only set the view once per center/zoom change
     if (!hasSetViewRef.current) {
-      map.setView(center, zoom);
+      console.log('Setting map view to:', center, zoom);
+      
+      // Mark as set immediately to prevent multiple calls
       hasSetViewRef.current = true;
+      
+      // Use a small timeout to ensure the map is ready
+      setTimeout(() => {
+        // First stop any ongoing animations
+        map.stop();
+        
+        // Disable map interactions temporarily
+        map.dragging.disable();
+        map.touchZoom.disable();
+        map.doubleClickZoom.disable();
+        map.scrollWheelZoom.disable();
+        map.keyboard.disable();
+        
+        // Use setView with minimal animation options
+        map.setView(center, zoom, {
+          animate: false,
+          duration: 0
+        });
+        
+        // Re-enable map interactions after a short delay
+        setTimeout(() => {
+          map.dragging.enable();
+          map.touchZoom.enable();
+          map.doubleClickZoom.enable();
+          map.scrollWheelZoom.enable();
+          map.keyboard.enable();
+          
+          // Force a redraw to ensure everything is displayed correctly
+          map.invalidateSize();
+        }, 150);
+      }, 50);
     }
   }, [center, zoom, map]);
+  
+  return null;
+};
+
+// Component to center the map on initial load
+const CenterMap = ({ center, zoom }: { center: [number, number], zoom: number }) => {
+  const map = useMap();
+  
+  useEffect(() => {
+    // Center the map on initial load
+    map.setView(center, zoom);
+    
+    // Fit the map to ensure all content is visible
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 100);
+  }, [center, zoom, map]);
+  
+  return null;
+};
+
+// Component to enforce map boundaries
+const BoundsController = () => {
+  const map = useMap();
+  
+  useEffect(() => {
+    // Ensure the map stays within bounds
+    const enforceMapBounds = () => {
+      const bounds = map.getBounds();
+      const maxBounds = map.options.maxBounds as L.LatLngBounds | undefined;
+      
+      if (maxBounds && !maxBounds.contains(bounds)) {
+        map.panInsideBounds(maxBounds, { animate: false });
+      }
+    };
+    
+    // Add event listeners
+    map.on('drag', enforceMapBounds);
+    map.on('zoomend', enforceMapBounds);
+    
+    return () => {
+      // Clean up event listeners
+      map.off('drag', enforceMapBounds);
+      map.off('zoomend', enforceMapBounds);
+    };
+  }, [map]);
   
   return null;
 };
@@ -85,13 +177,20 @@ const getProjectUrl = (project: Project): string => {
   return `${baseUrl}/project/${projectIdentifier}`;
 };
 
+// Define interface for legend items
+interface LegendItem {
+  color: string;
+  label: string;
+  borderColor?: string;
+}
+
 const ProjectMap: React.FC<ProjectMapProps> = ({ 
   selectedCategory, 
   selectedSubCategory,
   showInactive 
 }) => {
-  // Default center position (world view)
-  const defaultPosition: [number, number] = [20, 0];
+  // Default center position (centered on the world)
+  const defaultPosition: [number, number] = [25, 0];
   
   const [worldGeoJSON, setWorldGeoJSON] = useState<WorldCountriesGeoJSON | null>(null);
   const [countryProjectCounts, setCountryProjectCounts] = useState<Record<string, number>>({});
@@ -142,7 +241,17 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
     const fetchData = async () => {
       try {
         const data = await fetchWorldCountriesGeoJSON();
-        setWorldGeoJSON(data);
+        
+        // Filter out Antarctica
+        const filteredData = {
+          ...data,
+          features: data.features.filter(feature => 
+            feature.properties?.name !== 'Antarctica' && 
+            feature.properties?.name !== 'Antarctic'
+          )
+        };
+        
+        setWorldGeoJSON(filteredData);
         
         // Create a mapping between country names and ISO codes
         const codeMap: Record<string, string> = {};
@@ -354,8 +463,8 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
       }
     }
     
-    // No projects case
-    if (count === 0) return '#F5F5F5'; // Neutral light gray for no projects
+    // No projects case - light grey fill
+    if (count === 0) return '#F5F5F5';
     
     // If we have no thresholds yet, use the default scale
     if (colorScaleThresholds.length === 0) {
@@ -389,16 +498,19 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
       if (!feature || !feature.properties) return {};
       
       const countryName = feature.properties.name as string;
-      const isHovered = hoveredCountry === countryName;
       const isSelected = selectedCountry === countryName;
+      
+      // Only apply hover effects when no country is selected
+      // This prevents the map from rerendering on hover when a country is selected
+      const isHovered = selectedCountry ? false : hoveredCountry === countryName;
       
       return {
         fillColor: getCountryColor(countryName),
-        weight: isHovered || isSelected ? 2 : 1,
+        weight: isSelected ? 2 : isHovered ? 1.5 : 1,
         opacity: 1,
-        color: isHovered || isSelected ? '#333' : '#888',
-        dashArray: isHovered || isSelected ? '' : '3',
-        fillOpacity: isHovered || isSelected ? 0.7 : 0.5
+        color: isSelected ? '#333' : isHovered ? '#666' : '#ccc',
+        dashArray: '', // Solid lines for all countries
+        fillOpacity: isSelected ? 0.7 : isHovered ? 0.6 : 0.5
       };
     }
   };
@@ -416,9 +528,6 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
       projectCount = countryProjectCounts['United States'] || 
                     countryProjectCounts['USA'] || 
                     countryProjectCounts['United States of America'] || 0;
-      
-      console.log(`US tooltip count check: ${countryName} has ${projectCount} projects`);
-      console.log('Available counts:', countryProjectCounts);
     } else {
       // For other countries, use the standard lookup
       projectCount = countryProjectCounts[countryName] || 0;
@@ -429,8 +538,18 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
     
     // Add event handlers
     layer.on({
-      mouseover: () => setHoveredCountry(countryName),
-      mouseout: () => setHoveredCountry(null),
+      mouseover: () => {
+        // Only set hover state if no country is selected
+        if (!selectedCountry) {
+          setHoveredCountry(countryName);
+        }
+      },
+      mouseout: () => {
+        // Only clear hover state if no country is selected
+        if (!selectedCountry) {
+          setHoveredCountry(null);
+        }
+      },
       click: () => {
         console.log(`Clicked on country: ${countryName}`);
         
@@ -438,26 +557,65 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
         if (selectedCountry === countryName) {
           console.log(`Deselecting country: ${countryName}`);
           setSelectedCountry(null);
+          // Reset hover state
+          setHoveredCountry(null);
+          
+          // Remove active class from all countries
+          document.querySelectorAll('.leaflet-interactive').forEach(el => {
+            el.classList.remove('country-active');
+          });
         } else {
           console.log(`Selecting country: ${countryName}`);
-          setSelectedCountry(countryName);
+          // Clear hover state when selecting a country
+          setHoveredCountry(null);
           
-          // Special handling for United States
-          if (countryName === 'United States of America' || countryName === 'United States') {
-            // Force fetch for US regardless of displayed count
-            console.log(`Special handling for US click, forcing fetch`);
-            fetchProjectsForCountry(countryName);
-          } else if (projectCount > 0) {
-            // Only fetch projects if there are any for this country
-            console.log(`Country ${countryName} has ${projectCount} projects, fetching...`);
-            // Fetch projects for this country when selected
-            fetchProjectsForCountry(countryName);
-          } else {
-            console.log(`Country ${countryName} has no projects, skipping fetch`);
+          // Add active class to the selected country first, before changing state
+          // For Path layers in Leaflet, we need to find the SVG element
+          if (layer instanceof L.Path) {
+            // Remove active class from all countries first
+            document.querySelectorAll('.leaflet-interactive').forEach(el => {
+              el.classList.remove('country-active');
+            });
+            
+            const pathElement = layer.getElement();
+            if (pathElement) {
+              pathElement.classList.add('country-active');
+            }
           }
+          
+          // Use a small timeout to ensure the DOM updates before changing state
+          // This helps prevent the flash zoom issue on first click
+          setTimeout(() => {
+            setSelectedCountry(countryName);
+            
+            // Special handling for United States
+            if (countryName === 'United States of America' || countryName === 'United States') {
+              // Force fetch for US regardless of displayed count
+              console.log(`Special handling for US click, forcing fetch`);
+              fetchProjectsForCountry(countryName);
+            } else if (projectCount > 0) {
+              // Only fetch projects if there are any for this country
+              console.log(`Country ${countryName} has ${projectCount} projects, fetching...`);
+              // Fetch projects for this country when selected
+              fetchProjectsForCountry(countryName);
+            } else {
+              console.log(`Country ${countryName} has no projects, skipping fetch`);
+            }
+          }, 50);
         }
       }
     });
+    
+    // If this country is already selected, add the active class
+    if (selectedCountry === countryName) {
+      // For Path layers in Leaflet, we need to find the SVG element
+      if (layer instanceof L.Path) {
+        const pathElement = layer.getElement();
+        if (pathElement) {
+          pathElement.classList.add('country-active');
+        }
+      }
+    }
   };
 
   // Function to fetch projects for a country
@@ -683,8 +841,8 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
     // Explicitly use maxProjectCount to help ESLint recognize the dependency
     const currentMaxCount = maxProjectCount;
     
-    const items = [
-      // Always include the "0 projects" item
+    const items: LegendItem[] = [
+      // Always include the "0 projects" item - now with light grey background
       {
         color: '#F5F5F5',
         label: '0 projects'
@@ -744,22 +902,32 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
 
   return (
     <div className="map-container">
+      {/* Add title above the map */}
+      <div className="map-title">
+        <h1>The ₿itcoin Global Economy</h1>
+      </div>
+      
       <MapContainer
         center={defaultPosition}
-        zoom={2}
-        style={{ height: '100%', width: '100%' }}
+        zoom={2.3}
+        style={{ height: '100%', width: '100%', backgroundColor: '#f8f9fa' }}
         minZoom={2}
-        maxBounds={[[-90, -180], [90, 180]]}
+        maxBounds={[[-60, -180], [85, 180]]}
+        maxBoundsViscosity={1.0}
+        worldCopyJump={false}
+        zoomControl={true}
+        className={selectedCountry ? 'country-selected' : ''}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-        />
+        {/* Add bounds controller to enforce map boundaries */}
+        <BoundsController />
+        
+        {/* Ensure map is centered on initial load */}
+        <CenterMap center={defaultPosition} zoom={2.3} />
         
         {/* Render world countries */}
         {worldGeoJSON && (
           <GeoJSON 
-            key={`world-geojson-${JSON.stringify(countryProjectCounts)}-${JSON.stringify(colorScaleThresholds)}`}
+            key={`world-geojson-${JSON.stringify(countryProjectCounts)}-${selectedCountry || 'none'}`}
             data={worldGeoJSON as GeoJsonObject} 
             style={countryStyle.style} 
             onEachFeature={onEachCountry}
@@ -770,7 +938,7 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
         {selectedCountry && (
           <SetMapView 
             center={getSelectedCountryCoordinates()} 
-            zoom={4} 
+            zoom={3.5}
           />
         )}
       </MapContainer>
@@ -793,7 +961,13 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
         {/* Dynamic legend items */}
         {legendItems.map((item, index) => (
           <div className="legend-item" key={index}>
-            <span className="color-box" style={{ backgroundColor: item.color }}></span>
+            <span 
+              className="color-box" 
+              style={{ 
+                backgroundColor: item.color,
+                border: item.borderColor ? `1px solid ${item.borderColor}` : 'none'
+              }}
+            ></span>
             <span>{item.label}</span>
           </div>
         ))}

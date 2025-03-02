@@ -32,18 +32,29 @@ body {
   right: 0;
   z-index: 1000;
   text-align: center;
+  animation: fadeIn 1s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .map-title h1 {
   display: inline-block;
   margin: 0;
   padding: 10px 20px;
-  background-color: rgba(255, 255, 255, 0.9);
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  font-size: 24px;
+  font-size: 32px;
   font-weight: 700;
   color: #333;
+  text-shadow: 0 1px 4px rgba(255, 255, 255, 0.9), 0 0 12px rgba(255, 255, 255, 0.8);
+  letter-spacing: 1px;
 }
 
 .map-container .leaflet-container {
@@ -389,4 +400,21 @@ body {
   .map-legend {
     bottom: 70px;
   }
+}
+
+/* Add styles to disable hover effects when a country is selected */
+.leaflet-interactive {
+  transition: all 0.2s ease;
+}
+
+/* When a country is selected, disable pointer events on other countries */
+.country-selected .leaflet-interactive:not(.country-active) {
+  pointer-events: none !important;
+  cursor: default !important;
+}
+
+/* Active country should still be interactive */
+.country-active {
+  cursor: pointer !important;
+  pointer-events: auto !important;
 } 
