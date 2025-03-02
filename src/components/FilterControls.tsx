@@ -24,6 +24,36 @@ const FilterControls: React.FC<FilterControlsProps> = ({
   selectedSubCategory,
   setSelectedSubCategory,
 }) => {
+  // State for mobile filter visibility
+  const [filtersVisible, setFiltersVisible] = useState<boolean>(false);
+  const [isMobile, setIsMobile] = useState<boolean>(false);
+
+  // Detect mobile devices
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      // On desktop, always show filters
+      if (!mobile) {
+        setFiltersVisible(true);
+      }
+    };
+    
+    // Check on initial load
+    checkMobile();
+    
+    // Add resize listener
+    window.addEventListener('resize', checkMobile);
+    
+    // Clean up
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Toggle filters visibility
+  const toggleFilters = () => {
+    setFiltersVisible(prev => !prev);
+  };
+
   // For debugging - log all enum values
   console.log('All ProjectCategory values:', Object.values(ProjectCategory));
   console.log('All ProjectSubCategory values:', Object.values(ProjectSubCategory));
@@ -154,79 +184,110 @@ const FilterControls: React.FC<FilterControlsProps> = ({
     setSelectedSubCategory(option ? option.value : null);
   };
 
+  // Filter icon SVG
+  const FilterIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '6px' }}>
+      <path d="M4 6H20M7 12H17M9 18H15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+
   return (
-    <div className="controls-container">
-      <div className="filter-section">
-        <h3>Project Filters</h3>
-        
-        <div className="select-container">
-          <label>Category</label>
-          <Select
-            value={selectedCategory ? { value: selectedCategory, label: formatEnumLabel(selectedCategory) } : null}
-            onChange={handleCategoryChange}
-            options={categoryOptions}
-            isClearable
-            placeholder="Select a category"
-            styles={{
-              control: (base) => ({
-                ...base,
-                borderColor: secondaryColors.blue,
-                '&:hover': {
+    <>
+      {/* Mobile filter toggle button */}
+      {isMobile && (
+        <button 
+          className="filters-toggle-button" 
+          onClick={toggleFilters}
+          aria-label={filtersVisible ? "Hide filters" : "Show filters"}
+        >
+          <FilterIcon />
+          {filtersVisible ? "Hide Filters" : "Show Filters"}
+        </button>
+      )}
+      
+      <div className={`controls-container ${isMobile && !filtersVisible ? 'hidden' : ''}`}>
+        <div className="filter-section">
+          <h3>Project Filters</h3>
+          
+          {isMobile && (
+            <button 
+              className="close-filters-button" 
+              onClick={() => setFiltersVisible(false)}
+              aria-label="Close filters"
+            >
+              ×
+            </button>
+          )}
+          
+          <div className="select-container">
+            <label>Category</label>
+            <Select
+              value={selectedCategory ? { value: selectedCategory, label: formatEnumLabel(selectedCategory) } : null}
+              onChange={handleCategoryChange}
+              options={categoryOptions}
+              isClearable
+              placeholder="Select a category"
+              styles={{
+                control: (base) => ({
+                  ...base,
                   borderColor: secondaryColors.blue,
-                },
-              }),
-              option: (base, { isSelected }) => ({
-                ...base,
-                backgroundColor: isSelected ? secondaryColors.blue : base.backgroundColor,
-                '&:hover': {
-                  backgroundColor: isSelected ? secondaryColors.blue : neutralColors[50],
-                },
-              }),
-              menuPortal: (base) => ({ ...base, zIndex: 9999 }),
-              menu: (base) => ({ ...base, position: 'absolute' }),
-            }}
-            menuPosition="fixed"
-          />
-        </div>
-        
-        <div className="select-container">
-          <label>Subcategory {subcategoryOptions.length > 0 ? `(${subcategoryOptions.length} options)` : ''}</label>
-          <Select
-            value={selectedSubCategory ? { value: selectedSubCategory, label: formatEnumLabel(selectedSubCategory) } : null}
-            onChange={handleSubcategoryChange}
-            options={subcategoryOptions}
-            isClearable
-            isDisabled={!selectedCategory}
-            placeholder={!selectedCategory 
-              ? "Select a category first" 
-              : subcategoryOptions.length > 0 
-                ? "Select a subcategory" 
-                : "No subcategories available"
-            }
-            styles={{
-              control: (base) => ({
-                ...base,
-                borderColor: secondaryColors.blue,
-                '&:hover': {
+                  '&:hover': {
+                    borderColor: secondaryColors.blue,
+                  },
+                }),
+                option: (base, { isSelected }) => ({
+                  ...base,
+                  backgroundColor: isSelected ? secondaryColors.blue : base.backgroundColor,
+                  '&:hover': {
+                    backgroundColor: isSelected ? secondaryColors.blue : neutralColors[50],
+                  },
+                }),
+                menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+                menu: (base) => ({ ...base, position: 'absolute' }),
+              }}
+              menuPosition="fixed"
+            />
+          </div>
+          
+          <div className="select-container">
+            <label>Subcategory {subcategoryOptions.length > 0 ? `(${subcategoryOptions.length} options)` : ''}</label>
+            <Select
+              value={selectedSubCategory ? { value: selectedSubCategory, label: formatEnumLabel(selectedSubCategory) } : null}
+              onChange={handleSubcategoryChange}
+              options={subcategoryOptions}
+              isClearable
+              isDisabled={!selectedCategory}
+              placeholder={!selectedCategory 
+                ? "Select a category first" 
+                : subcategoryOptions.length > 0 
+                  ? "Select a subcategory" 
+                  : "No subcategories available"
+              }
+              styles={{
+                control: (base) => ({
+                  ...base,
                   borderColor: secondaryColors.blue,
-                },
-                backgroundColor: !selectedCategory ? neutralColors[50] : base.backgroundColor,
-              }),
-              option: (base, { isSelected }) => ({
-                ...base,
-                backgroundColor: isSelected ? secondaryColors.blue : base.backgroundColor,
-                '&:hover': {
-                  backgroundColor: isSelected ? secondaryColors.blue : neutralColors[50],
-                },
-              }),
-              menuPortal: (base) => ({ ...base, zIndex: 9999 }),
-              menu: (base) => ({ ...base, position: 'absolute' }),
-            }}
-            menuPosition="fixed"
-          />
+                  '&:hover': {
+                    borderColor: secondaryColors.blue,
+                  },
+                  backgroundColor: !selectedCategory ? neutralColors[50] : base.backgroundColor,
+                }),
+                option: (base, { isSelected }) => ({
+                  ...base,
+                  backgroundColor: isSelected ? secondaryColors.blue : base.backgroundColor,
+                  '&:hover': {
+                    backgroundColor: isSelected ? secondaryColors.blue : neutralColors[50],
+                  },
+                }),
+                menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+                menu: (base) => ({ ...base, position: 'absolute' }),
+              }}
+              menuPosition="fixed"
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

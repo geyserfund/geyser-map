@@ -207,6 +207,45 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
   const [maxProjectCount, setMaxProjectCount] = useState<number>(0);
   // Add state for color scale thresholds
   const [colorScaleThresholds, setColorScaleThresholds] = useState<number[]>([]);
+  // Add state for mobile detection
+  const [isMobile, setIsMobile] = useState<boolean>(false);
+  const [defaultZoom, setDefaultZoom] = useState<number>(2.3);
+  const [countryZoom, setCountryZoom] = useState<number>(3.5);
+  // Add state for legend visibility on mobile
+  const [legendVisible, setLegendVisible] = useState<boolean>(true);
+
+  // Detect mobile devices and adjust zoom levels
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      
+      // Adjust zoom levels based on screen size
+      if (mobile) {
+        setDefaultZoom(1.8); // Zoomed out more on mobile
+        setCountryZoom(3.0); // Less zoom when selecting a country on mobile
+        setLegendVisible(false); // Hide legend by default on mobile
+      } else {
+        setDefaultZoom(2.3); // Default zoom for desktop
+        setCountryZoom(3.5); // Default country zoom for desktop
+        setLegendVisible(true); // Always show legend on desktop
+      }
+    };
+    
+    // Check on initial load
+    checkMobile();
+    
+    // Add resize listener
+    window.addEventListener('resize', checkMobile);
+    
+    // Clean up
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Toggle legend visibility
+  const toggleLegend = () => {
+    setLegendVisible(prev => !prev);
+  };
 
   // Fetch country project counts with filters
   const { data: countryData, loading: countryDataLoading, refetch: refetchCountryData } = useQuery(GET_PROJECT_COUNTRIES, {
@@ -909,20 +948,20 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
       
       <MapContainer
         center={defaultPosition}
-        zoom={2.3}
+        zoom={defaultZoom}
         style={{ height: '100%', width: '100%', backgroundColor: '#f8f9fa' }}
-        minZoom={2}
+        minZoom={isMobile ? 1 : 2}
         maxBounds={[[-60, -180], [85, 180]]}
         maxBoundsViscosity={1.0}
         worldCopyJump={false}
-        zoomControl={true}
+        zoomControl={!isMobile} // Hide zoom controls on mobile
         className={selectedCountry ? 'country-selected' : ''}
       >
         {/* Add bounds controller to enforce map boundaries */}
         <BoundsController />
         
         {/* Ensure map is centered on initial load */}
-        <CenterMap center={defaultPosition} zoom={2.3} />
+        <CenterMap center={defaultPosition} zoom={defaultZoom} />
         
         {/* Render world countries */}
         {worldGeoJSON && (
@@ -938,13 +977,30 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
         {selectedCountry && (
           <SetMapView 
             center={getSelectedCountryCoordinates()} 
-            zoom={3.5}
+            zoom={countryZoom}
           />
         )}
       </MapContainer>
       
+      {/* Mobile legend toggle button */}
+      {isMobile && (
+        <button 
+          className="legend-toggle-button" 
+          onClick={toggleLegend}
+          aria-label={legendVisible ? "Hide legend" : "Show legend"}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '6px' }}>
+            <path d="M9 3H4v6h5V3z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M20 3h-5v6h5V3z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M20 15h-5v6h5v-6z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M9 15H4v6h5v-6z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {legendVisible ? "Hide Legend" : "Show Legend"}
+        </button>
+      )}
+      
       {/* Legend */}
-      <div className="map-legend">
+      <div className={`map-legend ${!legendVisible ? 'hidden' : ''}`}>
         <h4>Projects per Country</h4>
         {countryDataLoading && (
           <div className="legend-loading">Updating map data...</div>
