@@ -1,18 +1,31 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, GeoJSON, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Project, ProjectCategory, ProjectStatus, ProjectSubCategory } from '@/types/project';
 import { getCountryCoordinates } from '@/utils/countryCoordinates';
 import { fetchWorldCountriesGeoJSON, WorldCountriesGeoJSON } from '@/utils/worldCountries';
 import { Feature, GeoJsonObject } from 'geojson';
-import { useQuery, useLazyQuery } from '@apollo/client';
+import { useQuery, useLazyQuery, ApolloQueryResult } from '@apollo/client';
 import { GET_PROJECT_COUNTRIES, GET_PROJECTS_BY_COUNTRY } from '@/api/queries';
+import { primaryColors } from '@/styles/colors';
 
 interface ProjectMapProps {
   projects?: Project[];
   selectedCategory: ProjectCategory | null;
   selectedSubCategory?: ProjectSubCategory | null;
   showInactive: boolean;
+}
+
+// Define interface for the project query response
+interface ProjectsQueryResponse {
+  projectsGet?: {
+    projects: Project[];
+    summary?: {
+      projectsCount: number;
+      fundersCount: number;
+      fundedTotal: number;
+    };
+  };
 }
 
 // Component to set the map view
@@ -90,6 +103,11 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
   const PAGE_SIZE = 4;
   const [isLoadingProjects, setIsLoadingProjects] = useState<boolean>(false);
   const [countryProjects, setCountryProjects] = useState<Project[]>([]);
+  // Add state for max project count
+  /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
+  const [maxProjectCount, setMaxProjectCount] = useState<number>(0);
+  // Add state for color scale thresholds
+  const [colorScaleThresholds, setColorScaleThresholds] = useState<number[]>([]);
 
   // Fetch country project counts with filters
   const { data: countryData, loading: countryDataLoading, refetch: refetchCountryData } = useQuery(GET_PROJECT_COUNTRIES, {
@@ -209,10 +227,18 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
       );
       console.log('United States data from API:', usCountry);
       
+      // Track min and max counts
+      const nonZeroValues: number[] = [];
+      
       countryData.projectCountriesGet.forEach((item: CountryData) => {
         const countryName = item.country.name;
         const countryCode = item.country.code;
         counts[countryName] = item.count;
+        
+        // Add to non-zero values array for calculating distribution
+        if (item.count > 0) {
+          nonZeroValues.push(item.count);
+        }
         
         // Create a reverse mapping from code to name
         codeToNameMap[countryCode] = countryName;
@@ -241,205 +267,79 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
       console.log('Country project counts:', counts);
       console.log('Country code to name mapping:', codeToNameMap);
       
+      // Calculate min and max project counts (excluding zeros)
+      if (nonZeroValues.length > 0) {
+        const max = Math.max(...nonZeroValues);
+        
+        setMaxProjectCount(max);
+        
+        console.log(`Max project count: ${max}`);
+        
+        // Calculate color scale thresholds based on distribution
+        // We'll create a logarithmic scale if the range is large, otherwise linear
+        const thresholds = calculateColorThresholds(max);
+        setColorScaleThresholds(thresholds);
+        
+        console.log('Color scale thresholds:', thresholds);
+      } else {
+        // Reset if no projects
+        setMaxProjectCount(0);
+        setColorScaleThresholds([]);
+      }
+      
       setCountryProjectCounts(counts);
     }
   }, [countryData]);
 
-  // Function to fetch projects for a country
-  const fetchProjectsForCountry = (countryName: string) => {
-    console.log(`Fetching projects for country: ${countryName} with filters:`, {
-      category: selectedCategory,
-      subCategory: selectedSubCategory
-    });
-    
-    // Special handling for United States
-    let countryCode = '';
-    
-    if (countryName === 'United States of America' || countryName === 'United States') {
-      console.log('Special handling for United States fetch');
-      // Try to find US in the API data
-      const usCountry = countryData?.projectCountriesGet?.find(
-        (item: CountryData) => 
-          item.country.name === 'United States' || 
-          item.country.name === 'USA' || 
-          item.country.code === 'US' || 
-          item.country.code === 'USA'
-      );
+  // Calculate color thresholds based on data distribution
+  const calculateColorThresholds = (max: number): number[] => {
+    // If the range is small, use a linear scale
+    if (max <= 10) {
+      // For small ranges, create evenly spaced thresholds
+      const step = Math.max(1, Math.ceil(max / 5));
+      const thresholds = [1];
       
-      if (usCountry) {
-        countryCode = usCountry.country.code;
-        console.log(`Found US country code: ${countryCode}`);
-      } else {
-        // Fallback to hardcoded US code
-        countryCode = 'US';
-        console.log(`Using fallback US country code: ${countryCode}`);
+      let current = 1;
+      while (current < max) {
+        current += step;
+        if (current <= max && !thresholds.includes(current)) {
+          thresholds.push(current);
+        }
       }
+      
+      // Ensure we have at least a few thresholds
+      if (thresholds.length < 3 && max > 3) {
+        return [1, Math.ceil(max / 3), Math.ceil(2 * max / 3), max];
+      }
+      
+      return thresholds;
     } else {
-      // Find the matching country from the API data to get the country code
-      const apiCountry = countryData?.projectCountriesGet?.find(
-        (item: CountryData) => item.country.name === countryName
-      );
+      // For larger ranges, use a logarithmic or quantile-based scale
+      // This ensures better distribution of colors
       
-      if (apiCountry) {
-        countryCode = apiCountry.country.code;
-      }
-    }
-    
-    if (!countryCode) {
-      console.error(`Could not find country code for ${countryName}`);
-      return;
-    }
-    
-    console.log(`Using country code: ${countryCode} for ${countryName}`);
-    
-    // Reset pagination
-    setCurrentPage(1);
-    setCountryProjects([]);
-    
-    // Set loading state
-    setIsLoadingProjects(true);
-    
-    // Fetch projects for the selected country
-    projectsByCountryQuery({
-      variables: {
-        input: {
-          where: {
-            countryCode: countryCode,
-            status: showInactive ? undefined : ProjectStatus.ACTIVE,
-            category: selectedCategory || undefined,
-            subCategory: selectedSubCategory || undefined,
-          },
-          pagination: {
-            take: PAGE_SIZE
-          }
-        }
-      }
-    })
-    .then((response: any) => {
-      console.log(`Projects fetched for ${countryName}:`, response.data?.projectsGet);
-      const fetchedProjects = response.data?.projectsGet?.projects || [];
+      // Logarithmic scale base calculation
+      const logBase = Math.pow(max, 1/5);
       
-      // More detailed debugging for project data
-      if (fetchedProjects.length > 0) {
-        console.log('Sample project data (full object):', JSON.stringify(fetchedProjects[0], null, 2));
-        console.log('Category type:', typeof fetchedProjects[0].category);
-        console.log('Category value:', fetchedProjects[0].category);
-        console.log('SubCategory type:', typeof fetchedProjects[0].subCategory);
-        console.log('SubCategory value:', fetchedProjects[0].subCategory);
-        
-        // Check if the category and subcategory are in the expected format
-        const validCategory = Object.values(ProjectCategory).includes(fetchedProjects[0].category);
-        const validSubCategory = Object.values(ProjectSubCategory).includes(fetchedProjects[0].subCategory);
-        
-        console.log('Is category valid enum value?', validCategory);
-        console.log('Is subcategory valid enum value?', validSubCategory);
-        
-        // Check if formatEnumValue works correctly
-        if (fetchedProjects[0].category) {
-          console.log('Formatted category:', formatEnumValue(fetchedProjects[0].category));
-        }
-        if (fetchedProjects[0].subCategory) {
-          console.log('Formatted subcategory:', formatEnumValue(fetchedProjects[0].subCategory));
+      // Generate thresholds using logarithmic scale
+      const thresholds = [1];
+      
+      for (let i = 1; i <= 5; i++) {
+        const value = Math.round(Math.pow(logBase, i));
+        if (value < max && value > thresholds[thresholds.length - 1]) {
+          thresholds.push(value);
         }
       }
       
-      setCountryProjects(fetchedProjects);
-      
-      // If we got exactly PAGE_SIZE projects, assume there might be more
-      setHasMoreProjects(fetchedProjects.length === PAGE_SIZE);
-      setIsLoadingProjects(false);
-    })
-    .catch((error: any) => {
-      console.error(`Error fetching projects for ${countryName}:`, error);
-      setIsLoadingProjects(false);
-    });
-  };
-
-  // Function to load more projects
-  const loadMoreProjects = () => {
-    if (selectedCountry && !isLoadingProjects && countryProjects.length > 0) {
-      console.log(`Loading more projects for ${selectedCountry}, page ${currentPage + 1} with filters:`, {
-        category: selectedCategory,
-        subCategory: selectedSubCategory
-      });
-      
-      // Find the matching country from the API data to get the country code
-      let countryCode = '';
-      
-      if (selectedCountry === 'United States of America' || selectedCountry === 'United States') {
-        // Special handling for United States
-        const usCountry = countryData?.projectCountriesGet?.find(
-          (item: CountryData) => 
-            item.country.name === 'United States' || 
-            item.country.name === 'USA' || 
-            item.country.code === 'US' || 
-            item.country.code === 'USA'
-        );
-        
-        if (usCountry) {
-          countryCode = usCountry.country.code;
-        } else {
-          countryCode = 'US'; // Fallback
-        }
-      } else {
-        const apiCountry = countryData?.projectCountriesGet?.find(
-          (item: CountryData) => item.country.name === selectedCountry
-        );
-        
-        if (apiCountry) {
-          countryCode = apiCountry.country.code;
-        }
+      // Always include the max value
+      if (thresholds[thresholds.length - 1] < max) {
+        thresholds.push(max);
       }
       
-      if (!countryCode) {
-        console.error(`Could not find country code for ${selectedCountry}`);
-        return;
-      }
-      
-      // Get the last project's ID to use as cursor
-      const lastProject = countryProjects[countryProjects.length - 1];
-      
-      setIsLoadingProjects(true);
-      
-      // Fetch the next page of projects using cursor-based pagination
-      projectsByCountryQuery({
-        variables: {
-          input: {
-            where: {
-              countryCode: countryCode,
-              status: showInactive ? undefined : ProjectStatus.ACTIVE,
-              category: selectedCategory || undefined,
-              subCategory: selectedSubCategory || undefined,
-            },
-            pagination: {
-              cursor: {
-                id: lastProject.id
-              },
-              take: PAGE_SIZE
-            }
-          }
-        }
-      })
-      .then((response: any) => {
-        const newProjects = response.data?.projectsGet?.projects || [];
-        console.log(`Loaded ${newProjects.length} more projects for ${selectedCountry}`);
-        
-        // Add new projects to existing ones
-        setCountryProjects(prev => [...prev, ...newProjects]);
-        setCurrentPage(prev => prev + 1);
-        
-        // If we got exactly PAGE_SIZE projects, assume there might be more
-        setHasMoreProjects(newProjects.length === PAGE_SIZE);
-        setIsLoadingProjects(false);
-      })
-      .catch((error: any) => {
-        console.error(`Error loading more projects:`, error);
-        setIsLoadingProjects(false);
-      });
+      return thresholds;
     }
   };
 
-  // Get color based on project count
+  // Get color based on project count using dynamic thresholds
   const getCountryColor = (countryName: string) => {
     let count = countryProjectCounts[countryName] || 0;
     
@@ -454,19 +354,41 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
       }
     }
     
-    if (count === 0) return '#F5F5F5';
-    if (count === 1) return '#BBDEFB';
-    if (count <= 3) return '#90CAF9';
-    if (count <= 5) return '#64B5F6';
-    if (count <= 10) return '#42A5F5';
-    if (count <= 20) return '#2196F3';
-    return '#1976D2';
+    // No projects case
+    if (count === 0) return '#F5F5F5'; // Neutral light gray for no projects
+    
+    // If we have no thresholds yet, use the default scale
+    if (colorScaleThresholds.length === 0) {
+      if (count === 1) return primaryColors[200];
+      if (count <= 3) return primaryColors[300];
+      if (count <= 5) return primaryColors[400];
+      if (count <= 10) return primaryColors[500];
+      if (count <= 20) return primaryColors[600];
+      return primaryColors[700];
+    }
+    
+    // Use dynamic thresholds for coloring
+    const colorKeys = [200, 300, 400, 500, 600, 700] as const;
+    
+    // Find the appropriate threshold index
+    for (let i = 0; i < colorScaleThresholds.length; i++) {
+      if (count <= colorScaleThresholds[i]) {
+        // Use corresponding color from the palette
+        const colorKey = colorKeys[Math.min(i, colorKeys.length - 1)];
+        return primaryColors[colorKey];
+      }
+    }
+    
+    // Default to darkest color if above all thresholds
+    return primaryColors[700];
   };
 
   // Style function for GeoJSON
   const countryStyle = {
-    style: function(feature: any) {
-      const countryName = feature?.properties?.name as string;
+    style: function(feature: Feature | undefined) {
+      if (!feature || !feature.properties) return {};
+      
+      const countryName = feature.properties.name as string;
       const isHovered = hoveredCountry === countryName;
       const isSelected = selectedCountry === countryName;
       
@@ -538,6 +460,200 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
     });
   };
 
+  // Function to fetch projects for a country
+  const fetchProjectsForCountry = (countryName: string) => {
+    console.log(`Fetching projects for country: ${countryName} with filters:`, {
+      category: selectedCategory,
+      subCategory: selectedSubCategory
+    });
+    
+    // Special handling for United States
+    let countryCode = '';
+    
+    if (countryName === 'United States of America' || countryName === 'United States') {
+      console.log('Special handling for United States fetch');
+      // Try to find US in the API data
+      const usCountry = countryData?.projectCountriesGet?.find(
+        (item: CountryData) => 
+          item.country.name === 'United States' || 
+          item.country.name === 'USA' || 
+          item.country.code === 'US' || 
+          item.country.code === 'USA'
+      );
+      
+      if (usCountry) {
+        countryCode = usCountry.country.code;
+        console.log(`Found US country code: ${countryCode}`);
+      } else {
+        // Fallback to hardcoded US code
+        countryCode = 'US';
+        console.log(`Using fallback US country code: ${countryCode}`);
+      }
+    } else {
+      // Find the matching country from the API data to get the country code
+      const apiCountry = countryData?.projectCountriesGet?.find(
+        (item: CountryData) => item.country.name === countryName
+      );
+      
+      if (apiCountry) {
+        countryCode = apiCountry.country.code;
+      }
+    }
+    
+    if (!countryCode) {
+      console.error(`Could not find country code for ${countryName}`);
+      return;
+    }
+    
+    console.log(`Using country code: ${countryCode} for ${countryName}`);
+    
+    // Reset pagination
+    setCurrentPage(1);
+    setCountryProjects([]);
+    
+    // Set loading state
+    setIsLoadingProjects(true);
+    
+    // Fetch projects for the selected country
+    projectsByCountryQuery({
+      variables: {
+        input: {
+          where: {
+            countryCode: countryCode,
+            status: showInactive ? undefined : ProjectStatus.ACTIVE,
+            category: selectedCategory || undefined,
+            subCategory: selectedSubCategory || undefined,
+          },
+          pagination: {
+            take: PAGE_SIZE
+          }
+        }
+      }
+    })
+    .then((response: ApolloQueryResult<ProjectsQueryResponse>) => {
+      console.log(`Projects fetched for ${countryName}:`, response.data?.projectsGet);
+      const fetchedProjects = response.data?.projectsGet?.projects || [];
+      
+      // More detailed debugging for project data
+      if (fetchedProjects.length > 0) {
+        console.log('Sample project data (full object):', JSON.stringify(fetchedProjects[0], null, 2));
+        console.log('Category type:', typeof fetchedProjects[0].category);
+        console.log('Category value:', fetchedProjects[0].category);
+        console.log('SubCategory type:', typeof fetchedProjects[0].subCategory);
+        console.log('SubCategory value:', fetchedProjects[0].subCategory);
+        
+        // Check if the category and subcategory are in the expected format
+        const validCategory = Object.values(ProjectCategory).includes(fetchedProjects[0].category);
+        const validSubCategory = Object.values(ProjectSubCategory).includes(fetchedProjects[0].subCategory);
+        
+        console.log('Is category valid enum value?', validCategory);
+        console.log('Is subcategory valid enum value?', validSubCategory);
+        
+        // Check if formatEnumValue works correctly
+        if (fetchedProjects[0].category) {
+          console.log('Formatted category:', formatEnumValue(fetchedProjects[0].category));
+        }
+        if (fetchedProjects[0].subCategory) {
+          console.log('Formatted subcategory:', formatEnumValue(fetchedProjects[0].subCategory));
+        }
+      }
+      
+      setCountryProjects(fetchedProjects);
+      
+      // If we got exactly PAGE_SIZE projects, assume there might be more
+      setHasMoreProjects(fetchedProjects.length === PAGE_SIZE);
+      setIsLoadingProjects(false);
+    })
+    .catch((error: Error) => {
+      console.error(`Error fetching projects for ${countryName}:`, error);
+      setIsLoadingProjects(false);
+    });
+  };
+
+  // Function to load more projects
+  const loadMoreProjects = () => {
+    if (selectedCountry && !isLoadingProjects && countryProjects.length > 0) {
+      console.log(`Loading more projects for ${selectedCountry}, page ${currentPage + 1} with filters:`, {
+        category: selectedCategory,
+        subCategory: selectedSubCategory
+      });
+      
+      // Find the matching country from the API data to get the country code
+      let countryCode = '';
+      
+      if (selectedCountry === 'United States of America' || selectedCountry === 'United States') {
+        // Special handling for United States
+        const usCountry = countryData?.projectCountriesGet?.find(
+          (item: CountryData) => 
+            item.country.name === 'United States' || 
+            item.country.name === 'USA' || 
+            item.country.code === 'US' || 
+            item.country.code === 'USA'
+        );
+        
+        if (usCountry) {
+          countryCode = usCountry.country.code;
+        } else {
+          countryCode = 'US'; // Fallback
+        }
+      } else {
+        const apiCountry = countryData?.projectCountriesGet?.find(
+          (item: CountryData) => item.country.name === selectedCountry
+        );
+        
+        if (apiCountry) {
+          countryCode = apiCountry.country.code;
+        }
+      }
+      
+      if (!countryCode) {
+        console.error(`Could not find country code for ${selectedCountry}`);
+        return;
+      }
+      
+      // Get the last project's ID to use as cursor
+      const lastProject = countryProjects[countryProjects.length - 1];
+      
+      setIsLoadingProjects(true);
+      
+      // Fetch the next page of projects using cursor-based pagination
+      projectsByCountryQuery({
+        variables: {
+          input: {
+            where: {
+              countryCode: countryCode,
+              status: showInactive ? undefined : ProjectStatus.ACTIVE,
+              category: selectedCategory || undefined,
+              subCategory: selectedSubCategory || undefined,
+            },
+            pagination: {
+              cursor: {
+                id: lastProject.id
+              },
+              take: PAGE_SIZE
+            }
+          }
+        }
+      })
+      .then((response: ApolloQueryResult<ProjectsQueryResponse>) => {
+        const newProjects = response.data?.projectsGet?.projects || [];
+        console.log(`Loaded ${newProjects.length} more projects for ${selectedCountry}`);
+        
+        // Add new projects to existing ones
+        setCountryProjects(prev => [...prev, ...newProjects]);
+        setCurrentPage(prev => prev + 1);
+        
+        // If we got exactly PAGE_SIZE projects, assume there might be more
+        setHasMoreProjects(newProjects.length === PAGE_SIZE);
+        setIsLoadingProjects(false);
+      })
+      .catch((error: Error) => {
+        console.error(`Error loading more projects:`, error);
+        setIsLoadingProjects(false);
+      });
+    }
+  };
+
   // Get coordinates for selected country as [number, number]
   const getSelectedCountryCoordinates = (): [number, number] => {
     if (!selectedCountry) return defaultPosition;
@@ -562,6 +678,70 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
     return defaultPosition;
   };
 
+  // Generate legend items based on dynamic thresholds
+  const legendItems = useMemo(() => {
+    // Explicitly use maxProjectCount to help ESLint recognize the dependency
+    const currentMaxCount = maxProjectCount;
+    
+    const items = [
+      // Always include the "0 projects" item
+      {
+        color: '#F5F5F5',
+        label: '0 projects'
+      }
+    ];
+    
+    // If we have no thresholds, use default scale
+    if (colorScaleThresholds.length === 0) {
+      return [
+        ...items,
+        { color: primaryColors[200], label: '1 project' },
+        { color: primaryColors[300], label: '2-3 projects' },
+        { color: primaryColors[400], label: '4-5 projects' },
+        { color: primaryColors[500], label: '6-10 projects' },
+        { color: primaryColors[600], label: '11-20 projects' },
+        { color: primaryColors[700], label: `20+ projects (max: ${currentMaxCount})` }
+      ];
+    }
+    
+    // Generate items based on thresholds
+    const colorKeys = [200, 300, 400, 500, 600, 700] as const;
+    
+    for (let i = 0; i < colorScaleThresholds.length; i++) {
+      const threshold = colorScaleThresholds[i];
+      const prevThreshold = i > 0 ? colorScaleThresholds[i - 1] : 0;
+      const colorKey = colorKeys[Math.min(i, colorKeys.length - 1)];
+      
+      let label = '';
+      if (i === 0) {
+        // First threshold is always 1
+        label = '1 project';
+      } else if (threshold === prevThreshold + 1) {
+        // Single value
+        label = `${threshold} projects`;
+      } else {
+        // Range of values
+        label = `${prevThreshold + 1}-${threshold} projects`;
+      }
+      
+      items.push({
+        color: primaryColors[colorKey],
+        label
+      });
+    }
+    
+    // Add a final item if needed for values above the last threshold
+    if (colorScaleThresholds.length > 0 && currentMaxCount > colorScaleThresholds[colorScaleThresholds.length - 1]) {
+      const lastThreshold = colorScaleThresholds[colorScaleThresholds.length - 1];
+      items.push({
+        color: primaryColors[700],
+        label: `${lastThreshold + 1}+ projects (max: ${currentMaxCount})`
+      });
+    }
+    
+    return items;
+  }, [colorScaleThresholds, maxProjectCount]);
+
   return (
     <div className="map-container">
       <MapContainer
@@ -579,7 +759,7 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
         {/* Render world countries */}
         {worldGeoJSON && (
           <GeoJSON 
-            key={`world-geojson-${JSON.stringify(countryProjectCounts)}`}
+            key={`world-geojson-${JSON.stringify(countryProjectCounts)}-${JSON.stringify(colorScaleThresholds)}`}
             data={worldGeoJSON as GeoJsonObject} 
             style={countryStyle.style} 
             onEachFeature={onEachCountry}
@@ -609,34 +789,14 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
             )}
           </div>
         )}
-        <div className="legend-item">
-          <span className="color-box" style={{ backgroundColor: '#F5F5F5' }}></span>
-          <span>0 projects</span>
-        </div>
-        <div className="legend-item">
-          <span className="color-box" style={{ backgroundColor: '#BBDEFB' }}></span>
-          <span>1 project</span>
-        </div>
-        <div className="legend-item">
-          <span className="color-box" style={{ backgroundColor: '#90CAF9' }}></span>
-          <span>2-3 projects</span>
-        </div>
-        <div className="legend-item">
-          <span className="color-box" style={{ backgroundColor: '#64B5F6' }}></span>
-          <span>4-5 projects</span>
-        </div>
-        <div className="legend-item">
-          <span className="color-box" style={{ backgroundColor: '#42A5F5' }}></span>
-          <span>6-10 projects</span>
-        </div>
-        <div className="legend-item">
-          <span className="color-box" style={{ backgroundColor: '#2196F3' }}></span>
-          <span>11-20 projects</span>
-        </div>
-        <div className="legend-item">
-          <span className="color-box" style={{ backgroundColor: '#1976D2' }}></span>
-          <span>20+ projects</span>
-        </div>
+        
+        {/* Dynamic legend items */}
+        {legendItems.map((item, index) => (
+          <div className="legend-item" key={index}>
+            <span className="color-box" style={{ backgroundColor: item.color }}></span>
+            <span>{item.label}</span>
+          </div>
+        ))}
       </div>
       
       {selectedCountry && (
@@ -660,10 +820,10 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
                     console.log(`- SubCategory: ${project.subCategory} (${typeof project.subCategory})`);
                     console.log(`- Has category: ${Boolean(project.category)}`);
                     console.log(`- Has subcategory: ${Boolean(project.subCategory)}`);
-                    
-                    return (
+          
+          return (
                     <a 
-                      key={project.id} 
+              key={project.id} 
                       className="project-card" 
                       href={getProjectUrl(project)} 
                       target="_blank" 
@@ -693,10 +853,10 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
                           {project.subCategory && (
                             <span className="project-subcategory pill">
                               {formatEnumValue(project.subCategory)}
-                            </span>
+                    </span>
                           )}
                         </div>
-                      </div>
+                  </div>
                     </a>
                   )})}
                 </div>

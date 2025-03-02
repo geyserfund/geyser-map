@@ -9,7 +9,7 @@ declare global {
   interface ImportMeta {
     env: {
       VITE_APP_API_ENDPOINT: string;
-      [key: string]: any;
+      [key: string]: string;
     }
   }
 }

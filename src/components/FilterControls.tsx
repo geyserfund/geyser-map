@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Select from 'react-select';
 import { ProjectCategory, ProjectSubCategory } from '@/types/project';
 import { secondaryColors, neutralColors } from '@/styles/colors';
@@ -29,7 +29,7 @@ const FilterControls: React.FC<FilterControlsProps> = ({
   console.log('All ProjectSubCategory values:', Object.values(ProjectSubCategory));
 
   // Create a map of categories to their subcategories
-  const SUBCATEGORY_MAP: Record<ProjectCategory, ProjectSubCategory[]> = {
+  const SUBCATEGORY_MAP: Record<ProjectCategory, ProjectSubCategory[]> = useMemo(() => ({
     [ProjectCategory.EDUCATION]: [
       ProjectSubCategory.COURSE,
       ProjectSubCategory.CONTENT_CREATOR,
@@ -69,7 +69,7 @@ const FilterControls: React.FC<FilterControlsProps> = ({
     [ProjectCategory.OTHER]: [
       ProjectSubCategory.OTHER,
     ],
-  };
+  }), []);
 
   // Debug the subcategory map
   console.log('SUBCATEGORY_MAP:', SUBCATEGORY_MAP);
@@ -119,7 +119,7 @@ const FilterControls: React.FC<FilterControlsProps> = ({
     } else {
       setSubcategoryOptions([]);
     }
-  }, [selectedCategory, setSelectedSubCategory]);
+  }, [selectedCategory, setSelectedSubCategory, SUBCATEGORY_MAP]);
 
   // For debugging
   console.log('Current subcategory options:', subcategoryOptions);

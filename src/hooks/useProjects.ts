@@ -1,19 +1,19 @@
-import { useState, useEffect } from 'react';
-import { useQuery } from '@apollo/client';
+import { useState } from 'react';
+import { useQuery, ApolloError } from '@apollo/client';
 import { GET_PROJECTS } from '@/api/queries';
 import { Project, ProjectCategory, ProjectStatus, ProjectSubCategory } from '@/types/project';
 
 interface UseProjectsProps {
     initialStatus?: ProjectStatus;
-    initialCategory?: ProjectCategory;
-    initialSubCategory?: ProjectSubCategory;
+    initialCategory?: ProjectCategory | null;
+    initialSubCategory?: ProjectSubCategory | null;
     initialShowInactive?: boolean;
 }
 
 interface UseProjectsReturn {
     projects: Project[];
     loading: boolean;
-    error: any;
+    error: ApolloError | undefined;
     filteredProjects: Project[];
     selectedCategory: ProjectCategory | null;
     setSelectedCategory: (category: ProjectCategory | null) => void;
@@ -25,8 +25,8 @@ interface UseProjectsReturn {
 
 export const useProjects = ({
     initialStatus = ProjectStatus.ACTIVE,
-    initialCategory = null,
-    initialSubCategory = null,
+    initialCategory = null as ProjectCategory | null,
+    initialSubCategory = null as ProjectSubCategory | null,
     initialShowInactive = false,
 }: UseProjectsProps = {}): UseProjectsReturn => {
     const [selectedCategory, setSelectedCategory] = useState<ProjectCategory | null>(initialCategory);
@@ -47,7 +47,7 @@ export const useProjects = ({
     });
 
     // Filter projects based on selected filters
-    const filteredProjects = data?.projectsGet?.projects.filter((project: Project) => {
+    const filteredProjects = data?.projectsGet?.projects?.filter((project: Project) => {
         // Filter by status if showInactive is false
         if (!showInactive && project.status !== ProjectStatus.ACTIVE) {
             return false;

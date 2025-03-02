@@ -39,13 +39,13 @@ export const fetchWorldCountriesGeoJSON = async (): Promise<WorldCountriesGeoJSO
     const data = await alternativeResponse.json();
 
     // Debug: Check if Brazil exists in the data
-    const brazilFeature = data.features.find((f: any) =>
+    const brazilFeature = data.features.find((f: CountryFeature) =>
         f.properties?.iso_a2 === 'BR' || f.properties?.iso_a3 === 'BRA'
     );
     console.log('Brazil feature in GeoJSON:', brazilFeature);
 
     // Debug: Log all country codes to check format
-    const countryCodes = data.features.map((f: any) => ({
+    const countryCodes = data.features.map((f: CountryFeature) => ({
         name: f.properties?.name,
         iso_a2: f.properties?.iso_a2,
         iso_a3: f.properties?.iso_a3
