@@ -1,7 +1,6 @@
 import React from 'react';
 import { Project } from '@/types/project';
 import { formatEnumValue } from './MapLegend';
-import L from 'leaflet';
 
 interface ProjectSidebarProps {
   selectedCountry: string | null;

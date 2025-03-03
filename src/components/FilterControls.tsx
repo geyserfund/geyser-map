@@ -104,8 +104,18 @@ const FilterControls: React.FC<FilterControlsProps> = ({
   // Debug the subcategory map
   console.log('SUBCATEGORY_MAP:', SUBCATEGORY_MAP);
 
-  // State for subcategory options
-  const [subcategoryOptions, setSubcategoryOptions] = useState<SelectOption<ProjectSubCategory>[]>([]);
+  // Create a reverse mapping from subcategory to category
+  const SUBCATEGORY_TO_CATEGORY = useMemo(() => {
+    const mapping: Record<ProjectSubCategory, ProjectCategory> = {} as Record<ProjectSubCategory, ProjectCategory>;
+    
+    Object.entries(SUBCATEGORY_MAP).forEach(([category, subcategories]) => {
+      subcategories.forEach(subcategory => {
+        mapping[subcategory] = category as ProjectCategory;
+      });
+    });
+    
+    return mapping;
+  }, [SUBCATEGORY_MAP]);
 
   // Format enum value to readable label
   const formatEnumLabel = (value: string): string => {
@@ -126,17 +136,22 @@ const FilterControls: React.FC<FilterControlsProps> = ({
   // Debug category options
   console.log('Category options:', categoryOptions);
 
+  // Create all subcategory options
+  const allSubcategoryOptions: SelectOption<ProjectSubCategory>[] = useMemo(() => 
+    Object.values(ProjectSubCategory).map(subCategory => ({
+      value: subCategory,
+      label: formatEnumLabel(subCategory),
+    }))
+  , []);
+
+  // State for filtered subcategory options
+  const [subcategoryOptions, setSubcategoryOptions] = useState<SelectOption<ProjectSubCategory>[]>(allSubcategoryOptions);
+
   // Update subcategory options when category changes
   useEffect(() => {
-    console.log('Selected category changed:', selectedCategory);
-    
     if (selectedCategory) {
-      // Reset subcategory when category changes
-      setSelectedSubCategory(null);
-      
       // Get subcategories for the selected category
       const subcategories = SUBCATEGORY_MAP[selectedCategory] || [];
-      console.log('Subcategories for selected category:', subcategories);
       
       // Create options for the subcategories
       const options = subcategories.map(subCategory => ({
@@ -144,12 +159,12 @@ const FilterControls: React.FC<FilterControlsProps> = ({
         label: formatEnumLabel(subCategory),
       }));
       
-      console.log('Setting subcategory options:', options);
       setSubcategoryOptions(options);
     } else {
-      setSubcategoryOptions([]);
+      // Show all subcategories when no category is selected
+      setSubcategoryOptions(allSubcategoryOptions);
     }
-  }, [selectedCategory, setSelectedSubCategory, SUBCATEGORY_MAP]);
+  }, [selectedCategory, SUBCATEGORY_MAP, allSubcategoryOptions]);
 
   // For debugging
   console.log('Current subcategory options:', subcategoryOptions);
@@ -157,31 +172,27 @@ const FilterControls: React.FC<FilterControlsProps> = ({
 
   // Handle category change
   const handleCategoryChange = (option: SelectOption<ProjectCategory> | null) => {
-    console.log('Category changed to:', option);
     const categoryValue = option ? option.value : null;
-    console.log('Setting selected category to:', categoryValue);
     setSelectedCategory(categoryValue);
     
-    // Manually update subcategory options if needed
-    if (categoryValue) {
-      const subcategories = SUBCATEGORY_MAP[categoryValue] || [];
-      const options = subcategories.map((subCategory: ProjectSubCategory) => ({
-        value: subCategory,
-        label: formatEnumLabel(subCategory),
-      }));
-      console.log('Manually setting subcategory options:', options);
-      setSubcategoryOptions(options);
-    } else {
-      // Clear subcategory options when no category is selected
-      setSubcategoryOptions([]);
+    // If clearing the category, also clear the subcategory
+    if (!categoryValue) {
       setSelectedSubCategory(null);
     }
   };
 
   // Handle subcategory change
   const handleSubcategoryChange = (option: SelectOption<ProjectSubCategory> | null) => {
-    console.log('Subcategory changed to:', option);
-    setSelectedSubCategory(option ? option.value : null);
+    const subcategoryValue = option ? option.value : null;
+    setSelectedSubCategory(subcategoryValue);
+    
+    // If selecting a subcategory, automatically select the corresponding category
+    if (subcategoryValue) {
+      const parentCategory = SUBCATEGORY_TO_CATEGORY[subcategoryValue];
+      if (parentCategory && parentCategory !== selectedCategory) {
+        setSelectedCategory(parentCategory);
+      }
+    }
   };
 
   // Filter icon SVG
@@ -256,13 +267,7 @@ const FilterControls: React.FC<FilterControlsProps> = ({
               onChange={handleSubcategoryChange}
               options={subcategoryOptions}
               isClearable
-              isDisabled={!selectedCategory}
-              placeholder={!selectedCategory 
-                ? "Select a category first" 
-                : subcategoryOptions.length > 0 
-                  ? "Select a subcategory" 
-                  : "No subcategories available"
-              }
+              placeholder="Select a subcategory"
               styles={{
                 control: (base) => ({
                   ...base,
@@ -270,7 +275,6 @@ const FilterControls: React.FC<FilterControlsProps> = ({
                   '&:hover': {
                     borderColor: secondaryColors.blue,
                   },
-                  backgroundColor: !selectedCategory ? neutralColors[50] : base.backgroundColor,
                 }),
                 option: (base, { isSelected }) => ({
                   ...base,
