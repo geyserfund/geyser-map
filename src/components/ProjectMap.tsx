@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { MapContainer } from 'react-leaflet';
 import { Project, ProjectCategory, ProjectSubCategory } from '@/types/project';
 import { GeoJsonObject } from 'geojson';
+import L from 'leaflet';
 
 // Import custom hooks
 import { useCountryData } from '@/hooks/useCountryData';
@@ -38,6 +39,9 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   
+  // Reference to the map container
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  
   // Use custom hooks
   const { isMobile, defaultZoom, countryZoom, legendVisible, toggleLegend } = useMapResponsiveness();
   const { worldGeoJSON, countryCodeMap: geoJsonCountryCodeMap } = useWorldGeoJSON();
@@ -52,6 +56,17 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
   // Merge country code maps from GeoJSON and API
   const countryCodeMap = { ...geoJsonCountryCodeMap, ...apiCountryCodeMap };
   
+  // Prepare country data for the hook
+  const countryData = {
+    projectCountriesGet: Object.entries(countryProjectCounts).map(([name, count]) => ({
+      country: { 
+        name, 
+        code: Object.keys(countryCodeMap).find(code => countryCodeMap[code] === name) || '' 
+      },
+      count
+    }))
+  };
+  
   // Use projects by country hook
   const { 
     countryProjects, 
@@ -60,44 +75,90 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
     fetchProjectsForCountry, 
     loadMoreProjects 
   } = useProjectsByCountry(
-    selectedCountry, 
-    countryCodeMap, 
-    selectedCategory, 
+    selectedCountry,
+    selectedCategory,
     selectedSubCategory || null, 
     showInactive,
-    // Pass the country data directly instead of trying to access result property
-    { projectCountriesGet: Object.entries(countryProjectCounts).map(([name, count]) => ({
-      country: { name, code: Object.keys(countryCodeMap).find(code => countryCodeMap[code] === name) || '' },
-      count
-    })) }
+    countryData
   );
   
   // Generate legend items
   const legendItems = generateLegendItems(colorScaleThresholds, maxProjectCount);
 
+  // Function to handle deselecting a country and resetting the map view
+  const handleDeselectCountry = () => {
+    // Deselect the country
+    setSelectedCountry(null);
+    
+    // Reset the map view
+    setTimeout(() => {
+      // Find the Leaflet map instance
+      const container = document.querySelector('.leaflet-container');
+      if (!container) return;
+      
+      // Get the Leaflet map instance
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const leafletMap = (container as any)._leaflet_map as L.Map;
+      if (!leafletMap) return;
+      
+      // Re-enable all map controls
+      leafletMap.touchZoom.enable();
+      leafletMap.doubleClickZoom.enable();
+      leafletMap.scrollWheelZoom.enable();
+      leafletMap.keyboard.enable();
+      leafletMap.dragging.enable();
+      
+      // Reset the view with animation
+      leafletMap.setView(defaultPosition, defaultZoom, {
+        animate: true,
+        duration: 1
+      });
+      
+      // Force a redraw
+      setTimeout(() => {
+        leafletMap.invalidateSize();
+      }, 100);
+      
+      // Remove active class from all countries
+      document.querySelectorAll('.leaflet-interactive').forEach(el => {
+        el.classList.remove('active');
+      });
+      
+      // Remove country-selected class from map container
+      const mapContainer = document.querySelector('.map-container');
+      if (mapContainer) {
+        mapContainer.classList.remove('country-selected');
+      }
+    }, 50);
+  };
+
+  // Calculate map bounds from GeoJSON data
+  const mapBounds = worldGeoJSON ? L.geoJSON(worldGeoJSON as GeoJsonObject).getBounds() : undefined;
+
   return (
-    <div className="map-container">
-      {/* Map Title */}
+    <div className={`map-container ${selectedCountry ? 'country-selected' : ''}`} ref={mapContainerRef}>
       <MapTitle />
       
-      <MapContainer
-        center={defaultPosition}
-        zoom={defaultZoom}
-        style={{ height: '100%', width: '100%', backgroundColor: '#f8f9fa' }}
-        minZoom={isMobile ? 1 : 2}
-        maxBounds={[[-60, -180], [85, 180]]}
-        maxBoundsViscosity={1.0}
-        worldCopyJump={false}
-        zoomControl={!isMobile} // Hide zoom controls on mobile
-        className={selectedCountry ? 'country-selected' : ''}
+      <MapContainer 
+        center={defaultPosition} 
+        zoom={defaultZoom} 
+        scrollWheelZoom={true}
+        zoomControl={false}
+        attributionControl={false}
+        className="map-element"
       >
-        {/* Add bounds controller to enforce map boundaries */}
-        <BoundsController />
+        {/* Map Controls */}
+        <SetMapView 
+          center={selectedCountry 
+            ? getSelectedCountryCoordinates(selectedCountry, apiCountryCodeMap, defaultPosition) 
+            : defaultPosition
+          }
+          zoom={selectedCountry ? countryZoom : defaultZoom}
+        />
+        <CenterMap bounds={mapBounds} />
+        <BoundsController maxBounds={[[-90, -180], [90, 180]]} />
         
-        {/* Ensure map is centered on initial load */}
-        <CenterMap center={defaultPosition} zoom={defaultZoom} />
-        
-        {/* Render world countries */}
+        {/* GeoJSON Layer */}
         {worldGeoJSON && (
           <GeoJsonLayer 
             geoJsonData={worldGeoJSON as GeoJsonObject}
@@ -108,14 +169,6 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
             setSelectedCountry={setSelectedCountry}
             fetchProjectsForCountry={fetchProjectsForCountry}
             colorScaleThresholds={colorScaleThresholds}
-          />
-        )}
-        
-        {/* Update map view when selected country changes, but only once */}
-        {selectedCountry && (
-          <SetMapView 
-            center={getSelectedCountryCoordinates(selectedCountry, countryCodeMap, defaultPosition)} 
-            zoom={countryZoom}
           />
         )}
       </MapContainer>
@@ -139,6 +192,7 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
         hasMoreProjects={hasMoreProjects}
         loadMoreProjects={loadMoreProjects}
         setSelectedCountry={setSelectedCountry}
+        onClose={handleDeselectCountry}
       />
     </div>
   );

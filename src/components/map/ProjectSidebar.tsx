@@ -1,6 +1,7 @@
 import React from 'react';
 import { Project } from '@/types/project';
 import { formatEnumValue } from './MapLegend';
+import L from 'leaflet';
 
 interface ProjectSidebarProps {
   selectedCountry: string | null;
@@ -9,6 +10,7 @@ interface ProjectSidebarProps {
   hasMoreProjects: boolean;
   loadMoreProjects: () => void;
   setSelectedCountry: (country: string | null) => void;
+  onClose?: () => void; // Optional prop for handling close action
 }
 
 // Helper function to get project URL
@@ -30,9 +32,23 @@ const ProjectSidebar: React.FC<ProjectSidebarProps> = ({
   isLoadingProjects,
   hasMoreProjects,
   loadMoreProjects,
-  setSelectedCountry
+  setSelectedCountry,
+  onClose
 }) => {
   if (!selectedCountry) return null;
+  
+  // Function to handle closing the sidebar
+  const handleClose = () => {
+    console.log('Closing sidebar and resetting map view');
+    
+    // Use the provided onClose handler if available, otherwise just deselect the country
+    if (onClose) {
+      onClose();
+    } else {
+      // Fallback to just deselecting the country
+      setSelectedCountry(null);
+    }
+  };
   
   return (
     <div className="project-sidebar">
@@ -40,7 +56,7 @@ const ProjectSidebar: React.FC<ProjectSidebarProps> = ({
         <h2>{selectedCountry}</h2>
         <button 
           className="close-button" 
-          onClick={() => setSelectedCountry(null)}
+          onClick={handleClose}
           aria-label="Close sidebar"
         >
           ×
@@ -49,7 +65,11 @@ const ProjectSidebar: React.FC<ProjectSidebarProps> = ({
       
       {isLoadingProjects && countryProjects.length === 0 ? (
         <div className="loading-indicator">Loading projects...</div>
-      ) : countryProjects.length > 0 ? (
+      ) : countryProjects.length === 0 ? (
+        <div className="no-projects-message">
+          No projects found for {selectedCountry}
+        </div>
+      ) : (
         <>
           <div className="sidebar-content">
             <h3>{countryProjects.length} Project{countryProjects.length !== 1 ? 's' : ''}</h3>
@@ -103,10 +123,6 @@ const ProjectSidebar: React.FC<ProjectSidebarProps> = ({
             )}
           </div>
         </>
-      ) : (
-        <div className="no-projects-message">
-          No projects found for {selectedCountry}
-        </div>
       )}
     </div>
   );

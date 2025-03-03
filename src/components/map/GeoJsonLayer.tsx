@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { GeoJSON } from 'react-leaflet';
 import L from 'leaflet';
 import { Feature, GeoJsonObject } from 'geojson';
@@ -25,6 +25,8 @@ const GeoJsonLayer: React.FC<GeoJsonLayerProps> = ({
   fetchProjectsForCountry,
   colorScaleThresholds
 }) => {
+  const geoJsonRef = useRef<L.GeoJSON | null>(null);
+
   // Get color based on project count using dynamic thresholds
   const getCountryColor = (countryName: string) => {
     let count = countryProjectCounts[countryName] || 0;
@@ -92,105 +94,181 @@ const GeoJsonLayer: React.FC<GeoJsonLayerProps> = ({
 
   // Event handlers for GeoJSON features
   const onEachCountry = (feature: Feature, layer: L.Layer) => {
-    // Get country name from properties
-    const countryName = feature.properties?.name as string;
+    // Get the country name from the feature properties
+    const countryName = feature.properties?.name;
     
-    // Special handling for United States
+    if (!countryName) return;
+    
+    // Get the project count for this country
     let projectCount = 0;
     
-    if (countryName === 'United States of America' || countryName === 'United States') {
-      // Check for US projects using various possible names
-      projectCount = countryProjectCounts['United States'] || 
-                    countryProjectCounts['USA'] || 
-                    countryProjectCounts['United States of America'] || 0;
+    // Special handling for United States (may appear with different names)
+    if (
+        countryName === 'United States of America' ||
+        countryName === 'United States' ||
+        countryName === 'USA'
+    ) {
+        // Check for US projects using various possible names
+        projectCount = countryProjectCounts['United States'] || 
+                      countryProjectCounts['USA'] || 
+                      countryProjectCounts['United States of America'] || 0;
     } else {
-      // For other countries, use the standard lookup
-      projectCount = countryProjectCounts[countryName] || 0;
+        // For other countries, use the standard lookup
+        projectCount = countryProjectCounts[countryName] || 0;
     }
     
-    // Add tooltip
-    layer.bindTooltip(`${countryName}: ${projectCount} project${projectCount !== 1 ? 's' : ''}`);
+    // Bind tooltip to show country name and project count
+    layer.bindTooltip(
+        `<div class="country-tooltip">
+            <strong>${countryName}</strong>
+            ${projectCount > 0 ? `<div>${projectCount} project${projectCount !== 1 ? 's' : ''}</div>` : ''}
+        </div>`,
+        { sticky: true }
+    );
     
-    // Add event handlers
+    // Add event handlers for mouse interactions
     layer.on({
-      mouseover: () => {
-        // Only set hover state if no country is selected
-        if (!selectedCountry) {
-          setHoveredCountry(countryName);
-        }
-      },
-      mouseout: () => {
-        // Only clear hover state if no country is selected
-        if (!selectedCountry) {
-          setHoveredCountry(null);
-        }
-      },
-      click: () => {
-        console.log(`Clicked on country: ${countryName}`);
-        
-        // Toggle selection - if already selected, deselect it
-        if (selectedCountry === countryName) {
-          console.log(`Deselecting country: ${countryName}`);
-          setSelectedCountry(null);
-          // Reset hover state
-          setHoveredCountry(null);
-          
-          // Remove active class from all countries
-          document.querySelectorAll('.leaflet-interactive').forEach(el => {
-            el.classList.remove('country-active');
-          });
-        } else {
-          console.log(`Selecting country: ${countryName}`);
-          // Clear hover state when selecting a country
-          setHoveredCountry(null);
-          
-          // Add active class to the selected country first, before changing state
-          // For Path layers in Leaflet, we need to find the SVG element
-          if (layer instanceof L.Path) {
-            // Remove active class from all countries first
+        mouseover: (e) => {
+            // Don't apply hover effect if a country is already selected
+            if (!selectedCountry) {
+                const layer = e.target;
+                layer.setStyle({
+                    weight: 2,
+                    color: '#666',
+                    dashArray: '',
+                    fillOpacity: 0.7
+                });
+                
+                if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                    layer.bringToFront();
+                }
+                
+                // Update hovered country state
+                setHoveredCountry(countryName);
+            }
+        },
+        mouseout: (e) => {
+            // Only reset style if this country is not selected
+            if (!selectedCountry || selectedCountry !== countryName) {
+                // Reset the style using GeoJSON's resetStyle method
+                const geoJsonLayer = e.target._eventParent || e.target;
+                if (geoJsonLayer && typeof geoJsonLayer.resetStyle === 'function') {
+                    geoJsonLayer.resetStyle(e.target);
+                }
+                
+                // Clear hovered state
+                setHoveredCountry(null);
+            }
+        },
+        click: (e) => {
+            // Stop propagation to prevent map click from interfering
+            e.originalEvent.stopPropagation();
+            
+            const layer = e.target;
+            const isAlreadySelected = selectedCountry === countryName;
+            
+            // Clear any hover states first
             document.querySelectorAll('.leaflet-interactive').forEach(el => {
-              el.classList.remove('country-active');
+                el.classList.remove('hover');
             });
             
-            const pathElement = layer.getElement();
-            if (pathElement) {
-              pathElement.classList.add('country-active');
-            }
-          }
-          
-          // Use a small timeout to ensure the DOM updates before changing state
-          // This helps prevent the flash zoom issue on first click
-          setTimeout(() => {
-            setSelectedCountry(countryName);
-            
-            // Special handling for United States
-            if (countryName === 'United States of America' || countryName === 'United States') {
-              // Force fetch for US regardless of displayed count
-              console.log(`Special handling for US click, forcing fetch`);
-              fetchProjectsForCountry(countryName);
-            } else if (projectCount > 0) {
-              // Only fetch projects if there are any for this country
-              console.log(`Country ${countryName} has ${projectCount} projects, fetching...`);
-              // Fetch projects for this country when selected
-              fetchProjectsForCountry(countryName);
+            if (isAlreadySelected) {
+                // If already selected, deselect it
+                console.log(`Deselecting country: ${countryName}`);
+                
+                // Deselect the country
+                setSelectedCountry(null);
+                
+                // Remove active class from all countries
+                document.querySelectorAll('.leaflet-interactive').forEach(el => {
+                    el.classList.remove('active');
+                });
+                
+                // Reset the style
+                const geoJsonLayer = layer._eventParent || layer;
+                if (geoJsonLayer && typeof geoJsonLayer.resetStyle === 'function') {
+                    geoJsonLayer.resetStyle(layer);
+                }
+                
+                // Reset the map view to show all countries
+                const map = layer._map;
+                if (map) {
+                    // First re-enable all map controls to ensure zoom works
+                    map.touchZoom.enable();
+                    map.doubleClickZoom.enable();
+                    map.scrollWheelZoom.enable();
+                    map.keyboard.enable();
+                    map.dragging.enable();
+                    
+                    // Then reset the view with animation
+                    console.log('Resetting map view to world view');
+                    map.setView([20, 0], 2, {
+                        animate: true,
+                        duration: 1
+                    });
+                    
+                    // Force a redraw after a short delay
+                    setTimeout(() => {
+                        map.invalidateSize();
+                    }, 100);
+                }
+                
+                // Remove country-selected class from the map container
+                const mapContainer = document.querySelector('.map-container');
+                if (mapContainer) {
+                    mapContainer.classList.remove('country-selected');
+                }
             } else {
-              console.log(`Country ${countryName} has no projects, skipping fetch`);
+                // If not selected, select it
+                console.log(`Selecting country: ${countryName}`);
+                
+                // Remove active class from all countries first
+                document.querySelectorAll('.leaflet-interactive').forEach(el => {
+                    el.classList.remove('active');
+                });
+                
+                // Add active class to the selected country
+                setTimeout(() => {
+                    const path = layer.getElement();
+                    if (path) {
+                        path.classList.add('active');
+                    }
+                }, 0);
+                
+                // Set the selected country immediately to open the sidebar
+                setSelectedCountry(countryName);
+                
+                // Fetch projects for this country if it has projects or is the US
+                // (US always has projects even if count is 0 due to data inconsistencies)
+                if (projectCount > 0 || countryName === 'United States of America' || countryName === 'United States' || countryName === 'USA') {
+                    // Use a small timeout to ensure state is updated before fetching
+                    setTimeout(() => {
+                        fetchProjectsForCountry(countryName);
+                    }, 50);
+                }
+                
+                // Zoom to the country bounds
+                const bounds = layer.getBounds();
+                const map = layer._map;
+                if (bounds && map) {
+                    map.fitBounds(bounds, {
+                        padding: [50, 50],
+                        maxZoom: 6
+                    });
+                }
             }
-          }, 50);
+            
+            // Add country-selected class to the map container for mobile styling
+            const mapContainer = document.querySelector('.map-container');
+            if (mapContainer) {
+                if (isAlreadySelected) {
+                    mapContainer.classList.remove('country-selected');
+                } else {
+                    mapContainer.classList.add('country-selected');
+                }
+            }
         }
-      }
     });
-    
-    // If this country is already selected, add the active class
-    if (selectedCountry === countryName) {
-      // For Path layers in Leaflet, we need to find the SVG element
-      if (layer instanceof L.Path) {
-        const pathElement = layer.getElement();
-        if (pathElement) {
-          pathElement.classList.add('country-active');
-        }
-      }
-    }
   };
 
   return (
@@ -199,6 +277,9 @@ const GeoJsonLayer: React.FC<GeoJsonLayerProps> = ({
       data={geoJsonData} 
       style={countryStyle} 
       onEachFeature={onEachCountry}
+      ref={(ref) => {
+        geoJsonRef.current = ref;
+      }}
     />
   );
 };

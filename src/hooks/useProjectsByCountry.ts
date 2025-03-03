@@ -14,6 +14,19 @@ interface ProjectsQueryResponse {
     };
 }
 
+// Define interface for country data
+interface CountryItem {
+    country: {
+        code: string;
+        name: string;
+    };
+    count: number;
+}
+
+interface CountryData {
+    projectCountriesGet?: CountryItem[];
+}
+
 interface UseProjectsByCountryResult {
     countryProjects: Project[];
     isLoadingProjects: boolean;
@@ -23,22 +36,109 @@ interface UseProjectsByCountryResult {
     loadMoreProjects: () => void;
 }
 
+// Common country codes for fallback
+const COUNTRY_CODE_FALLBACKS: Record<string, string> = {
+    'United States': 'US',
+    'United States of America': 'US',
+    'USA': 'US',
+    'Italy': 'IT',
+    'France': 'FR',
+    'Germany': 'DE',
+    'United Kingdom': 'GB',
+    'UK': 'GB',
+    'Spain': 'ES',
+    'Canada': 'CA',
+    'Australia': 'AU',
+    'Japan': 'JP',
+    'China': 'CN',
+    'Brazil': 'BR',
+    'India': 'IN',
+    'Russia': 'RU',
+    'South Africa': 'ZA',
+    'Mexico': 'MX',
+    'Netherlands': 'NL',
+    'Switzerland': 'CH',
+    'Sweden': 'SE',
+    'Norway': 'NO',
+    'Denmark': 'DK',
+    'Finland': 'FI',
+    'Belgium': 'BE',
+    'Austria': 'AT',
+    'Portugal': 'PT',
+    'Greece': 'GR',
+    'Ireland': 'IE',
+    'New Zealand': 'NZ',
+    'Singapore': 'SG',
+    'Israel': 'IL'
+};
+
 export const useProjectsByCountry = (
     selectedCountry: string | null,
-    countryCodeMap: Record<string, string>,
     selectedCategory: ProjectCategory | null,
     selectedSubCategory: ProjectSubCategory | null,
     showInactive: boolean,
-    countryData: any
+    countryData: CountryData
 ): UseProjectsByCountryResult => {
     const [countryProjects, setCountryProjects] = useState<Project[]>([]);
     const [isLoadingProjects, setIsLoadingProjects] = useState<boolean>(false);
     const [hasMoreProjects, setHasMoreProjects] = useState<boolean>(false);
     const [currentPage, setCurrentPage] = useState<number>(1);
-    const PAGE_SIZE = 4;
+    const PAGE_SIZE = 10;
 
     // Lazy query for fetching projects by country
     const [projectsByCountryQuery] = useLazyQuery(GET_PROJECTS_BY_COUNTRY);
+
+    // Helper function to get country code - more robust lookup
+    const getCountryCode = (countryName: string): string => {
+        // Check if we have a fallback code for this country
+        if (COUNTRY_CODE_FALLBACKS[countryName]) {
+            console.log(`Using fallback country code for ${countryName}: ${COUNTRY_CODE_FALLBACKS[countryName]}`);
+            return COUNTRY_CODE_FALLBACKS[countryName];
+        }
+
+        // Try to find an exact match in the API data
+        const exactMatch = countryData?.projectCountriesGet?.find(
+            (item: CountryItem) => item.country.name === countryName
+        );
+
+        if (exactMatch) {
+            console.log(`Found exact match for ${countryName}: ${exactMatch.country.code}`);
+            return exactMatch.country.code;
+        }
+
+        // Try to find a case-insensitive match
+        const caseInsensitiveMatch = countryData?.projectCountriesGet?.find(
+            (item: CountryItem) => item.country.name.toLowerCase() === countryName.toLowerCase()
+        );
+
+        if (caseInsensitiveMatch) {
+            console.log(`Found case-insensitive match for ${countryName}: ${caseInsensitiveMatch.country.code}`);
+            return caseInsensitiveMatch.country.code;
+        }
+
+        // Try to find a partial match (country name contains or is contained in the API country name)
+        const partialMatch = countryData?.projectCountriesGet?.find(
+            (item: CountryItem) =>
+                item.country.name.toLowerCase().includes(countryName.toLowerCase()) ||
+                countryName.toLowerCase().includes(item.country.name.toLowerCase())
+        );
+
+        if (partialMatch) {
+            console.log(`Found partial match for ${countryName}: ${partialMatch.country.code}`);
+            return partialMatch.country.code;
+        }
+
+        // If all else fails, try to guess the country code (first 2 letters of the country name)
+        if (countryName.length >= 2) {
+            const guessedCode = countryName.substring(0, 2).toUpperCase();
+            console.log(`Guessing country code for ${countryName}: ${guessedCode}`);
+            return guessedCode;
+        }
+
+        // No match found
+        console.error(`Could not find country code for ${countryName}`);
+        return '';
+    };
 
     // Function to fetch projects for a country
     const fetchProjectsForCountry = (countryName: string) => {
@@ -47,38 +147,8 @@ export const useProjectsByCountry = (
             subCategory: selectedSubCategory
         });
 
-        // Special handling for United States
-        let countryCode = '';
-
-        if (countryName === 'United States of America' || countryName === 'United States') {
-            console.log('Special handling for United States fetch');
-            // Try to find US in the API data
-            const usCountry = countryData?.projectCountriesGet?.find(
-                (item: any) =>
-                    item.country.name === 'United States' ||
-                    item.country.name === 'USA' ||
-                    item.country.code === 'US' ||
-                    item.country.code === 'USA'
-            );
-
-            if (usCountry) {
-                countryCode = usCountry.country.code;
-                console.log(`Found US country code: ${countryCode}`);
-            } else {
-                // Fallback to hardcoded US code
-                countryCode = 'US';
-                console.log(`Using fallback US country code: ${countryCode}`);
-            }
-        } else {
-            // Find the matching country from the API data to get the country code
-            const apiCountry = countryData?.projectCountriesGet?.find(
-                (item: any) => item.country.name === countryName
-            );
-
-            if (apiCountry) {
-                countryCode = apiCountry.country.code;
-            }
-        }
+        // Get the country code
+        const countryCode = getCountryCode(countryName);
 
         if (!countryCode) {
             console.error(`Could not find country code for ${countryName}`);
@@ -116,7 +186,7 @@ export const useProjectsByCountry = (
 
                 // More detailed debugging for project data
                 if (fetchedProjects.length > 0) {
-                    console.log('Sample project data (full object):', JSON.stringify(fetchedProjects[0], null, 2));
+                    console.log('Sample project data (first project):', fetchedProjects[0].name);
                 }
 
                 setCountryProjects(fetchedProjects);
@@ -133,86 +203,82 @@ export const useProjectsByCountry = (
 
     // Function to load more projects
     const loadMoreProjects = () => {
-        if (selectedCountry && !isLoadingProjects && countryProjects.length > 0) {
-            console.log(`Loading more projects for ${selectedCountry}, page ${currentPage + 1} with filters:`, {
-                category: selectedCategory,
-                subCategory: selectedSubCategory
-            });
+        if (!selectedCountry) {
+            console.error('Cannot load more projects: No country selected');
+            return;
+        }
 
-            // Find the matching country from the API data to get the country code
-            let countryCode = '';
+        if (isLoadingProjects) {
+            console.log('Already loading projects, skipping request');
+            return;
+        }
 
-            if (selectedCountry === 'United States of America' || selectedCountry === 'United States') {
-                // Special handling for United States
-                const usCountry = countryData?.projectCountriesGet?.find(
-                    (item: any) =>
-                        item.country.name === 'United States' ||
-                        item.country.name === 'USA' ||
-                        item.country.code === 'US' ||
-                        item.country.code === 'USA'
-                );
+        if (countryProjects.length === 0) {
+            console.error('Cannot load more projects: No existing projects to paginate from');
+            return;
+        }
 
-                if (usCountry) {
-                    countryCode = usCountry.country.code;
-                } else {
-                    countryCode = 'US'; // Fallback
-                }
-            } else {
-                const apiCountry = countryData?.projectCountriesGet?.find(
-                    (item: any) => item.country.name === selectedCountry
-                );
+        console.log(`Loading more projects for ${selectedCountry}, page ${currentPage + 1} with filters:`, {
+            category: selectedCategory,
+            subCategory: selectedSubCategory
+        });
 
-                if (apiCountry) {
-                    countryCode = apiCountry.country.code;
-                }
-            }
+        // Get the country code
+        const countryCode = getCountryCode(selectedCountry);
 
-            if (!countryCode) {
-                console.error(`Could not find country code for ${selectedCountry}`);
-                return;
-            }
+        if (!countryCode) {
+            console.error(`Could not find country code for ${selectedCountry}`);
+            return;
+        }
 
-            // Get the last project's ID to use as cursor
-            const lastProject = countryProjects[countryProjects.length - 1];
+        // Get the last project's ID to use as cursor
+        const lastProject = countryProjects[countryProjects.length - 1];
 
-            setIsLoadingProjects(true);
+        // Set loading state before making the query
+        setIsLoadingProjects(true);
 
-            // Fetch the next page of projects using cursor-based pagination
-            projectsByCountryQuery({
-                variables: {
-                    input: {
-                        where: {
-                            countryCode: countryCode,
-                            status: showInactive ? undefined : ProjectStatus.ACTIVE,
-                            category: selectedCategory || undefined,
-                            subCategory: selectedSubCategory || undefined,
+        // Fetch the next page of projects using cursor-based pagination
+        projectsByCountryQuery({
+            variables: {
+                input: {
+                    where: {
+                        countryCode: countryCode,
+                        status: showInactive ? undefined : ProjectStatus.ACTIVE,
+                        category: selectedCategory || undefined,
+                        subCategory: selectedSubCategory || undefined,
+                    },
+                    pagination: {
+                        cursor: {
+                            id: lastProject.id
                         },
-                        pagination: {
-                            cursor: {
-                                id: lastProject.id
-                            },
-                            take: PAGE_SIZE
-                        }
+                        take: PAGE_SIZE
                     }
                 }
-            })
-                .then((response: ApolloQueryResult<ProjectsQueryResponse>) => {
-                    const newProjects = response.data?.projectsGet?.projects || [];
-                    console.log(`Loaded ${newProjects.length} more projects for ${selectedCountry}`);
+            },
+            fetchPolicy: 'network-only' // Force a network request instead of using cache
+        })
+            .then((response: ApolloQueryResult<ProjectsQueryResponse>) => {
+                const newProjects = response.data?.projectsGet?.projects || [];
+                console.log(`Loaded ${newProjects.length} more projects for ${selectedCountry}`);
 
+                if (newProjects.length === 0) {
+                    console.log('No more projects available');
+                    setHasMoreProjects(false);
+                } else {
                     // Add new projects to existing ones
                     setCountryProjects(prev => [...prev, ...newProjects]);
                     setCurrentPage(prev => prev + 1);
 
                     // If we got exactly PAGE_SIZE projects, assume there might be more
                     setHasMoreProjects(newProjects.length === PAGE_SIZE);
-                    setIsLoadingProjects(false);
-                })
-                .catch((error: Error) => {
-                    console.error(`Error loading more projects:`, error);
-                    setIsLoadingProjects(false);
-                });
-        }
+                }
+
+                setIsLoadingProjects(false);
+            })
+            .catch((error: Error) => {
+                console.error(`Error loading more projects:`, error);
+                setIsLoadingProjects(false);
+            });
     };
 
     return {
