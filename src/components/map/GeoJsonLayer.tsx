@@ -201,13 +201,6 @@ const GeoJsonLayer: React.FC<GeoJsonLayerProps> = ({
                     map.keyboard.enable();
                     map.dragging.enable();
                     
-                    // Then reset the view with animation
-                    console.log('Resetting map view to world view');
-                    map.setView([20, 0], 2, {
-                        animate: true,
-                        duration: 1
-                    });
-                    
                     // Force a redraw after a short delay
                     setTimeout(() => {
                         map.invalidateSize();
@@ -250,15 +243,7 @@ const GeoJsonLayer: React.FC<GeoJsonLayerProps> = ({
                     }, 50);
                 }
                 
-                // Zoom to the country bounds
-                const bounds = layer.getBounds();
-                const map = layer._map;
-                if (bounds && map) {
-                    map.fitBounds(bounds, {
-                        padding: [50, 50],
-                        maxZoom: 6
-                    });
-                }
+                // NOTE: Zoom to country bounds removed to disable zoom effect
             }
             
             // Add country-selected class to the map container for mobile styling

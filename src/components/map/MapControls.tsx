@@ -33,12 +33,13 @@ export const SetMapView: React.FC<SetMapViewProps> = ({ center, zoom }) => {
     // Skip the initial render since we handle it separately
     if (initialRenderRef.current) return;
     
-    // Only update view when a country is selected or deselected (significant change)
+    // Only update view when there's a very significant change
+    // We're making this more strict to avoid unnecessary view updates
     const isSignificantChange = 
       (prevCenterRef.current && 
-       (Math.abs(prevCenterRef.current[0] - center[0]) > 5 || 
-        Math.abs(prevCenterRef.current[1] - center[1]) > 5)) ||
-      (prevZoomRef.current && Math.abs(prevZoomRef.current - zoom) > 0.5);
+       (Math.abs(prevCenterRef.current[0] - center[0]) > 20 || 
+        Math.abs(prevCenterRef.current[1] - center[1]) > 20)) ||
+      (prevZoomRef.current && Math.abs(prevZoomRef.current - zoom) > 1.5);
     
     if (isSignificantChange) {
       console.log(`Significant change detected: [${center[0]}, ${center[1]}], zoom: ${zoom}`);

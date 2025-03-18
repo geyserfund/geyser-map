@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { MapContainer } from 'react-leaflet';
 import { Project, ProjectCategory, ProjectSubCategory } from '@/types/project';
 import { GeoJsonObject } from 'geojson';
@@ -16,9 +16,6 @@ import GeoJsonLayer from './map/GeoJsonLayer';
 import MapLegend, { generateLegendItems } from './map/MapLegend';
 import ProjectSidebar from './map/ProjectSidebar';
 
-// Import utilities
-import { getSelectedCountryCoordinates } from '@/utils/countryUtils';
-
 interface ProjectMapProps {
   projects?: Project[];
   selectedCategory: ProjectCategory | null;
@@ -32,7 +29,7 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
   showInactive 
 }) => {
   // Default center position (centered on the world)
-  const defaultPosition: [number, number] = [10, 0];
+  const defaultPosition = useMemo<[number, number]>(() => [10, 0], []);
   
   // State for hover and selection
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
@@ -42,7 +39,7 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   
   // Use custom hooks
-  const { isMobile, defaultZoom, countryZoom, legendVisible, toggleLegend } = useMapResponsiveness();
+  const { isMobile, defaultZoom, legendVisible, toggleLegend } = useMapResponsiveness();
   const { worldGeoJSON, countryCodeMap: geoJsonCountryCodeMap } = useWorldGeoJSON();
   const { 
     countryProjectCounts, 
@@ -176,11 +173,8 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
       >
         {/* Map Controls */}
         <SetMapView 
-          center={selectedCountry 
-            ? getSelectedCountryCoordinates(selectedCountry, apiCountryCodeMap, defaultPosition) 
-            : defaultPosition
-          }
-          zoom={selectedCountry ? countryZoom : defaultZoom}
+          center={defaultPosition}
+          zoom={defaultZoom}
         />
         {/* Only use CenterMap when no country is selected */}
         {!selectedCountry && <CenterMap bounds={mapBounds} />}
