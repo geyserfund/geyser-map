@@ -234,14 +234,11 @@ const GeoJsonLayer: React.FC<GeoJsonLayerProps> = ({
                 // Set the selected country immediately to open the sidebar
                 setSelectedCountry(countryName);
                 
-                // Fetch projects for this country if it has projects or is the US
-                // (US always has projects even if count is 0 due to data inconsistencies)
-                if (projectCount > 0 || countryName === 'United States of America' || countryName === 'United States' || countryName === 'USA') {
-                    // Use a small timeout to ensure state is updated before fetching
-                    setTimeout(() => {
-                        fetchProjectsForCountry(countryName);
-                    }, 50);
-                }
+                // Always fetch projects for the selected country, even if it has no projects
+                // This ensures that previous country's projects are cleared
+                setTimeout(() => {
+                    fetchProjectsForCountry(countryName);
+                }, 50);
                 
                 // NOTE: Zoom to country bounds removed to disable zoom effect
             }

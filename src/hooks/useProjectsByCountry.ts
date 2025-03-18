@@ -34,6 +34,7 @@ interface UseProjectsByCountryResult {
     currentPage: number;
     fetchProjectsForCountry: (countryName: string) => void;
     loadMoreProjects: () => void;
+    resetProjects: () => void;
 }
 
 // Common country codes for fallback
@@ -281,12 +282,20 @@ export const useProjectsByCountry = (
             });
     };
 
+    const resetProjects = () => {
+        setCountryProjects([]);
+        setIsLoadingProjects(false);
+        setHasMoreProjects(false);
+        setCurrentPage(1);
+    };
+
     return {
         countryProjects,
         isLoadingProjects,
         hasMoreProjects,
         currentPage,
         fetchProjectsForCountry,
-        loadMoreProjects
+        loadMoreProjects,
+        resetProjects
     };
 }; 

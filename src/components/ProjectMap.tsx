@@ -69,7 +69,8 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
     isLoadingProjects, 
     hasMoreProjects, 
     fetchProjectsForCountry, 
-    loadMoreProjects 
+    loadMoreProjects,
+    resetProjects  // Extract resetProjects function directly from the hook
   } = useProjectsByCountry(
     selectedCountry,
     selectedCategory,
@@ -80,6 +81,14 @@ const ProjectMap: React.FC<ProjectMapProps> = ({
   
   // Generate legend items
   const legendItems = generateLegendItems(colorScaleThresholds, maxProjectCount);
+
+  // Reset projects when deselecting a country
+  useEffect(() => {
+    if (!selectedCountry && countryProjects.length > 0) {
+      // Reset projects when no country is selected
+      resetProjects();
+    }
+  }, [selectedCountry, countryProjects.length, resetProjects]);
 
   // Function to handle deselecting a country and resetting the map view
   const handleDeselectCountry = () => {
