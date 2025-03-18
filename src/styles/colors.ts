@@ -52,6 +52,39 @@ export const secondaryColors = {
     lightPurple: '#9912CE',
 }
 
+// Light mode colors
+export const lightModeColors = {
+    background: '#FFFFFF',
+    text: '#212529',
+    surface: '#FFFFFF',
+    primarySurface: 'rgba(0, 225, 180, 0.07)',
+    overlay: 'rgba(25, 21, 1, 0.29)',
+    primaryContrast: '#FFFFFF',
+    whiteContrast: '#FFFFFF',
+    blackContrast: '#1C2024',
+    invertText: '#FFFFFF',
+    panel: 'rgba(255, 255, 255, 0.8)',
+    panelSolid: '#FFFFFF',
+    mapBackground: '#FFFFFF',
+}
+
+// Dark mode colors
+export const darkModeColors = {
+    background: '#121212',
+    text: '#E9ECEF',
+    surface: '#1E1E1E',
+    primarySurface: 'rgba(0, 225, 180, 0.15)',
+    overlay: 'rgba(0, 0, 0, 0.5)',
+    primaryContrast: '#FFFFFF',
+    whiteContrast: '#FFFFFF',
+    blackContrast: '#1C2024',
+    invertText: '#212529',
+    panel: 'rgba(30, 30, 30, 0.8)',
+    panelSolid: '#1E1E1E',
+    mapBackground: '#121212',
+}
+
+// Utility colors (will be replaced by theme context)
 export const utilColors = {
     pbg: '#FFFFFF',
     surface: '#FFFFFF',

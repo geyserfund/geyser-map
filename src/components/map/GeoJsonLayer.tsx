@@ -182,6 +182,7 @@ const GeoJsonLayer: React.FC<GeoJsonLayerProps> = ({
                 // Remove active class from all countries
                 document.querySelectorAll('.leaflet-interactive').forEach(el => {
                     el.classList.remove('active');
+                    el.classList.remove('country-active');
                 });
                 
                 // Reset the style
@@ -225,6 +226,7 @@ const GeoJsonLayer: React.FC<GeoJsonLayerProps> = ({
                 // Remove active class from all countries first
                 document.querySelectorAll('.leaflet-interactive').forEach(el => {
                     el.classList.remove('active');
+                    el.classList.remove('country-active');
                 });
                 
                 // Add active class to the selected country
@@ -232,6 +234,7 @@ const GeoJsonLayer: React.FC<GeoJsonLayerProps> = ({
                     const path = layer.getElement();
                     if (path) {
                         path.classList.add('active');
+                        path.classList.add('country-active');
                     }
                 }, 0);
                 

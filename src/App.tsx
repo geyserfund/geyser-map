@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import ProjectMap from '@/components/ProjectMap';
 import FilterControls from '@/components/FilterControls';
+import NavBar from '@/components/NavBar';
 import { ProjectCategory, ProjectSubCategory } from '@/types/project';
 
 const App: React.FC = () => {
@@ -13,7 +14,8 @@ const App: React.FC = () => {
 
   return (
     <div className="app">
-      <ProjectMap 
+      <NavBar/>
+      <ProjectMap
         selectedCategory={selectedCategory}
         selectedSubCategory={selectedSubCategory}
         showInactive={showInactive} 

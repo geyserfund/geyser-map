@@ -49,8 +49,13 @@ const ProjectSidebar: React.FC<ProjectSidebarProps> = ({
     }
   };
   
+  // Prevent clicks from propagating to the map
+  const handleSidebarClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+  
   return (
-    <div className="project-sidebar">
+    <div className="project-sidebar" onClick={handleSidebarClick}>
       <div className="sidebar-header">
         <h2>{selectedCountry}</h2>
         <button 
@@ -80,6 +85,7 @@ const ProjectSidebar: React.FC<ProjectSidebarProps> = ({
                   href={getProjectUrl(project)} 
                   target="_blank" 
                   rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
                 >
                   {project.thumbnailImage && (
                     <div className="project-thumbnail">
@@ -114,7 +120,10 @@ const ProjectSidebar: React.FC<ProjectSidebarProps> = ({
             {hasMoreProjects && (
               <button 
                 className="load-more-button" 
-                onClick={loadMoreProjects}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  loadMoreProjects();
+                }}
                 disabled={isLoadingProjects}
               >
                 {isLoadingProjects ? 'Loading...' : 'Load More'}

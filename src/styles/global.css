@@ -4,25 +4,71 @@
   box-sizing: border-box;
 }
 
+:root {
+  /* Light mode variables */
+  --background-color: #FFFFFF;
+  --text-color: #212529;
+  --surface-color: #FFFFFF;
+  --panel-color: rgba(255, 255, 255, 0.8);
+  --panel-solid: #FFFFFF;
+  --map-background: #FFFFFF;
+  --border-color: #DEE2E6;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --hover-color: #F4F4F4;
+  --logo-filter: none; /* No filter for light mode */
+  --primary-color: #20ECC7;
+  --primary-hover: #10CAA8;
+}
+
+[data-theme="dark"] {
+  /* Dark mode variables */
+  --background-color: #121212;
+  --text-color: #E9ECEF;
+  --surface-color: #1E1E1E;
+  --panel-color: rgba(30, 30, 30, 0.8);
+  --panel-solid: #1E1E1E;
+  --map-background: #121212;
+  --border-color: #343A40;
+  --shadow-color: rgba(0, 0, 0, 0.3);
+  --hover-color: #2C2C2C;
+  --logo-filter: invert(1) brightness(1.5); /* Invert colors for dark mode */
+  --primary-color: #20ECC7; /* Keep the same primary color in dark mode */
+  --primary-hover: #10CAA8; /* Keep the same hover color in dark mode */
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #FCFCFC;
-  color: #212529;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  overflow: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .leaflet-container {
   width: 100%;
   height: 100vh;
+  background-color: var(--map-background) !important;
 }
 
 .map-container {
   position: relative;
   width: 100%;
   height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: var(--background-color);
+  transition: background-color 0.3s ease;
+  padding-top: 60px;
+}
+
+.map-element {
+  width: 100%;
+  height: 100%;
 }
 
 .map-title {
@@ -52,9 +98,38 @@ body {
   padding: 10px 20px;
   font-size: 32px;
   font-weight: 700;
-  color: #333;
-  text-shadow: 0 1px 4px rgba(255, 255, 255, 0.9), 0 0 12px rgba(255, 255, 255, 0.8);
+  color: var(--text-color);
+  text-shadow: 0 1px 4px var(--shadow-color), 0 0 12px var(--shadow-color);
   letter-spacing: 1px;
+}
+
+/* Theme toggle button */
+.theme-toggle {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 1500;
+  background-color: var(--panel-color);
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 5px var(--shadow-color);
+  transition: background-color 0.3s ease;
+}
+
+.theme-toggle:hover {
+  background-color: var(--hover-color);
+}
+
+.theme-toggle svg {
+  width: 20px;
+  height: 20px;
+  fill: var(--text-color);
 }
 
 .map-container .leaflet-container {
@@ -68,30 +143,35 @@ body {
   bottom: 20px;
   left: 20px;
   z-index: 1000;
-  background-color: rgba(255, 255, 255, 0.9);
+  background-color: var(--panel-solid);
   padding: 15px;
   border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 10px var(--shadow-color);
   max-width: 300px;
   width: 100%;
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
 }
 
 .map-legend {
   position: absolute;
   bottom: 20px;
   right: 20px;
-  background-color: white;
+  background-color: var(--panel-solid);
   padding: 10px;
   border-radius: 5px;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0 10px var(--shadow-color);
   z-index: 1000;
   max-width: 200px;
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
 }
 
 .map-legend h4 {
   margin-top: 0;
   margin-bottom: 10px;
   font-size: 14px;
+  color: var(--text-color);
 }
 
 .legend-loading {
@@ -105,8 +185,9 @@ body {
   font-size: 12px;
   margin-bottom: 8px;
   padding: 4px;
-  background-color: #f0f0f0;
+  background-color: var(--hover-color);
   border-radius: 4px;
+  color: var(--text-color);
 }
 
 .legend-item {
@@ -114,6 +195,7 @@ body {
   align-items: center;
   margin-bottom: 5px;
   font-size: 12px;
+  color: var(--text-color);
 }
 
 .color-box {
@@ -121,43 +203,67 @@ body {
   width: 15px;
   height: 15px;
   margin-right: 8px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-color);
 }
 
 .project-popup {
   padding: 5px;
+  color: var(--text-color);
+  background-color: var(--panel-solid);
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
 }
 
 .project-popup h3 {
   margin-top: 0;
   margin-bottom: 8px;
   font-size: 16px;
+  color: var(--text-color);
 }
 
 .project-popup p {
   margin-bottom: 8px;
   font-size: 14px;
+  color: var(--text-color);
 }
 
 .project-popup .category {
   display: inline-block;
   padding: 2px 6px;
   margin-right: 5px;
-  background-color: #e3f2fd;
+  background-color: rgba(33, 150, 243, 0.2);
+  color: #2196F3;
   border-radius: 3px;
   font-size: 12px;
+}
+
+[data-theme="dark"] .project-popup .category {
+  background-color: rgba(33, 150, 243, 0.3);
+  color: #64B5F6;
 }
 
 .project-popup .status {
   display: inline-block;
   padding: 2px 6px;
-  background-color: #e8f5e9;
+  background-color: rgba(76, 175, 80, 0.2);
+  color: #4CAF50;
   border-radius: 3px;
   font-size: 12px;
 }
 
+[data-theme="dark"] .project-popup .status {
+  background-color: rgba(76, 175, 80, 0.3);
+  color: #81C784;
+}
+
 .project-popup .status.inactive {
-  background-color: #ffebee;
+  background-color: rgba(244, 67, 54, 0.2);
+  color: #F44336;
+}
+
+[data-theme="dark"] .project-popup .status.inactive {
+  background-color: rgba(244, 67, 54, 0.3);
+  color: #E57373;
 }
 
 .filter-section {
@@ -167,13 +273,14 @@ body {
 .filter-section h3 {
   margin-bottom: 8px;
   font-size: 16px;
-  color: #343A40;
+  color: var(--text-color);
 }
 
 .checkbox-container {
   display: flex;
   align-items: center;
   margin-bottom: 5px;
+  color: var(--text-color);
 }
 
 .checkbox-container input {
@@ -182,6 +289,38 @@ body {
 
 .select-container {
   margin-bottom: 10px;
+  color: var(--text-color);
+}
+
+.select-container label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--text-color);
+}
+
+.select-container select {
+  width: 100%;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background-color: var(--panel-solid);
+  color: var(--text-color);
+}
+
+.close-filters-button {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--text-color);
+  padding: 0 5px;
+}
+
+.close-filters-button:hover {
+  color: var(--primary-color);
 }
 
 @media (max-width: 768px) {
@@ -203,7 +342,14 @@ body {
 
 /* Make sure the Leaflet attribution is visible */
 .leaflet-control-attribution {
-  background-color: rgba(255, 255, 255, 0.8) !important;
+  background-color: var(--panel-color) !important;
+  color: var(--text-color) !important;
+  padding: 2px 5px;
+  border-radius: 3px;
+}
+
+.leaflet-control-attribution a {
+  color: var(--primary-color) !important;
 }
 
 /* Project Sidebar Styles */
@@ -213,26 +359,29 @@ body {
   right: 0;
   width: 350px;
   height: 100%;
-  background-color: white;
-  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+  background-color: var(--panel-solid);
+  box-shadow: -2px 0 10px var(--shadow-color);
   z-index: 1000;
   overflow-y: auto;
   transition: transform 0.3s ease;
+  color: var(--text-color);
+  border-left: 1px solid var(--border-color);
 }
 
 .sidebar-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 20px;
-  border-bottom: 1px solid #eee;
-  background-color: #f8f9fa;
+  padding: 15px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--hover-color);
 }
 
 .sidebar-header h2 {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
+  color: var(--text-color);
 }
 
 .close-button {
@@ -249,14 +398,14 @@ body {
 }
 
 .sidebar-content {
-  padding: 20px;
+  padding: 12px;
 }
 
 .sidebar-content h3 {
   margin-top: 0;
   margin-bottom: 15px;
   font-size: 16px;
-  color: #666;
+  color: var(--text-color);
 }
 
 .project-list {
@@ -268,19 +417,19 @@ body {
 .project-card {
   display: flex;
   flex-direction: column;
-  border: 1px solid #eee;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 5px var(--shadow-color);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   text-decoration: none;
-  color: inherit;
-  background-color: white;
+  color: var(--text-color);
+  background-color: var(--panel-solid);
 }
 
 .project-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 8px var(--shadow-color);
 }
 
 .project-thumbnail {
@@ -296,20 +445,21 @@ body {
 }
 
 .project-info {
-  padding: 15px;
+  padding: 12px;
 }
 
 .project-info h3 {
   margin: 0 0 10px 0;
   font-size: 16px;
   font-weight: 600;
-  color: #333;
+  color: var(--text-color);
 }
 
 .project-description {
   margin: 0 0 15px 0;
   font-size: 14px;
-  color: #666;
+  color: var(--text-color);
+  opacity: 0.8;
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -334,30 +484,50 @@ body {
 }
 
 .project-category {
-  background-color: #e3f2fd;
-  color: #0d47a1;
+  background-color: rgba(33, 150, 243, 0.2);
+  color: #2196F3;
+}
+
+[data-theme="dark"] .project-category {
+  background-color: rgba(33, 150, 243, 0.3);
+  color: #64B5F6;
 }
 
 .project-subcategory {
-  background-color: #e8f5e9;
-  color: #1b5e20;
+  background-color: rgba(76, 175, 80, 0.2);
+  color: #4CAF50;
+}
+
+[data-theme="dark"] .project-subcategory {
+  background-color: rgba(76, 175, 80, 0.3);
+  color: #81C784;
 }
 
 .project-status {
-  background-color: #e8f5e9;
-  color: #1b5e20;
+  background-color: rgba(76, 175, 80, 0.2);
+  color: #4CAF50;
+}
+
+[data-theme="dark"] .project-status {
+  background-color: rgba(76, 175, 80, 0.3);
+  color: #81C784;
 }
 
 .project-status.inactive {
-  background-color: #ffebee;
-  color: #b71c1c;
+  background-color: rgba(244, 67, 54, 0.2);
+  color: #F44336;
+}
+
+[data-theme="dark"] .project-status.inactive {
+  background-color: rgba(244, 67, 54, 0.3);
+  color: #E57373;
 }
 
 /* Load more button and loading indicator */
 .loading-indicator {
   text-align: center;
   padding: 20px;
-  color: #666;
+  color: var(--text-color);
   font-size: 14px;
 }
 
@@ -366,10 +536,10 @@ body {
   width: 100%;
   padding: 10px;
   margin-top: 15px;
-  background-color: #f0f0f0;
-  border: 1px solid #ddd;
+  background-color: var(--hover-color);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
-  color: #333;
+  color: var(--text-color);
   font-size: 14px;
   font-weight: 500;
   text-align: center;
@@ -378,17 +548,18 @@ body {
 }
 
 .load-more-button:hover {
-  background-color: #e0e0e0;
+  background-color: var(--primary-color);
+  color: #000000;
 }
 
 .load-more-button:active {
-  background-color: #d0d0d0;
+  opacity: 0.9;
 }
 
 .no-projects-message {
   padding: 20px;
   text-align: center;
-  color: #666;
+  color: var(--text-color);
   font-size: 14px;
 }
 
@@ -476,7 +647,7 @@ body {
   }
   
   .sidebar-header {
-    padding: 12px 15px;
+    padding: 12px 10px;
     border-radius: 15px 15px 0 0;
     position: relative;
   }
@@ -490,12 +661,12 @@ body {
     transform: translateX(-50%);
     width: 40px;
     height: 4px;
-    background-color: #ddd;
+    background-color: var(--border-color);
     border-radius: 2px;
   }
   
   .sidebar-content {
-    padding: 15px;
+    padding: 10px;
     max-height: calc(70vh - 50px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
@@ -507,6 +678,10 @@ body {
   
   .project-thumbnail {
     height: 120px;
+  }
+  
+  .project-info {
+    padding: 10px; /* Added to reduce padding in mobile view */
   }
   
   .project-info h3 {
@@ -580,14 +755,14 @@ body {
   position: absolute;
   bottom: 10px;
   right: 10px;
-  background-color: white;
-  border: 1px solid #ddd;
+  background-color: var(--panel-solid);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   padding: 8px 12px;
   font-size: 12px;
   font-weight: 500;
-  color: #333;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  color: var(--text-color);
+  box-shadow: 0 2px 5px var(--shadow-color);
   cursor: pointer;
   z-index: 1000;
   min-width: 120px;
@@ -595,7 +770,7 @@ body {
 }
 
 .legend-toggle-button:hover {
-  background-color: #f5f5f5;
+  background-color: var(--hover-color);
 }
 
 .map-legend.hidden {
@@ -607,14 +782,14 @@ body {
   position: absolute;
   bottom: 10px;
   left: 10px;
-  background-color: white;
-  border: 1px solid #ddd;
+  background-color: var(--panel-solid);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   padding: 8px 12px;
   font-size: 12px;
   font-weight: 500;
-  color: #333;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  color: var(--text-color);
+  box-shadow: 0 2px 5px var(--shadow-color);
   cursor: pointer;
   z-index: 1000;
   min-width: 120px;
@@ -622,7 +797,7 @@ body {
 }
 
 .filters-toggle-button:hover {
-  background-color: #f5f5f5;
+  background-color: var(--hover-color);
 }
 
 /* Align buttons when both are visible */
@@ -658,12 +833,12 @@ body {
   border: none;
   font-size: 24px;
   cursor: pointer;
-  color: #666;
+  color: var(--text-color);
   padding: 0 5px;
 }
 
 .close-filters-button:hover {
-  color: #333;
+  color: var(--primary-color);
 }
 
 /* Add styles to disable hover effects when a country is selected */
@@ -671,14 +846,193 @@ body {
   transition: all 0.2s ease;
 }
 
-/* When a country is selected, disable pointer events on other countries */
+/* When a country is selected, still allow pointer events on other countries */
 .country-selected .leaflet-interactive:not(.country-active) {
-  pointer-events: none !important;
-  cursor: default !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
 }
 
 /* Active country should still be interactive */
 .country-active {
   cursor: pointer !important;
   pointer-events: auto !important;
+  z-index: 1000 !important; /* Ensure active country stays on top */
+}
+
+/* Navbar styles */
+.navbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background-color: var(--panel-color);
+  box-shadow: 0 2px 5px var(--shadow-color);
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+.navbar-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 100%;
+  padding: 0 10px;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.navbar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.geyser-logo {
+  height: 30px;
+  width: auto;
+  filter: var(--logo-filter);
+  transition: filter 0.3s ease;
+}
+
+.navbar-logo h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-color);
+  letter-spacing: 0.5px;
+}
+
+.navbar-links {
+  display: flex;
+  gap: 15px;
+  margin-right: 20px;
+}
+
+.navbar-link {
+  color: var(--text-color);
+  text-decoration: none;
+  font-size: 16px;
+  font-weight: 500;
+  transition: color 0.2s ease;
+  padding: 5px 0;
+  position: relative;
+}
+
+.navbar-link:after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 2px;
+  bottom: 0;
+  left: 0;
+  background-color: var(--text-color);
+  transition: width 0.2s ease;
+}
+
+.navbar-link:hover:after {
+  width: 100%;
+}
+
+.navbar-actions {
+  display: flex;
+  align-items: center;
+}
+
+/* Primary button styles */
+.primary-button {
+  background-color: var(--primary-color);
+  color: #000000;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.primary-button:hover {
+  background-color: var(--primary-hover);
+}
+
+/* Update theme toggle position for navbar */
+.navbar .theme-toggle {
+  position: relative;
+  top: auto;
+  right: auto;
+  margin-left: 5px;
+}
+
+/* Mobile menu styles */
+.mobile-menu-button {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: var(--text-color);
+  cursor: pointer;
+  padding: 5px;
+  margin-left: 10px;
+}
+
+.mobile-menu {
+  display: none;
+  position: fixed;
+  top: 60px;
+  left: 0;
+  right: 0;
+  background-color: var(--panel-solid);
+  box-shadow: 0 4px 6px var(--shadow-color);
+  z-index: 1000;
+  flex-direction: column;
+  padding: 15px;
+}
+
+.mobile-menu.open {
+  display: flex;
+}
+
+.mobile-menu .navbar-link {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-color);
+  width: 100%;
+}
+
+.mobile-menu .primary-button {
+  margin-top: 15px;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .navbar-links {
+    display: none;
+  }
+  
+  .navbar-logo h1 {
+    font-size: 14px;
+  }
+  
+  .geyser-logo {
+    height: 24px;
+  }
+  
+  .navbar-container {
+    padding: 0 5px;
+  }
+  
+  .mobile-menu-button {
+    display: block;
+  }
+  
+  .navbar-actions {
+    display: flex;
+    align-items: center;
+  }
 } 

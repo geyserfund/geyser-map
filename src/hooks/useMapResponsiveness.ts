@@ -10,8 +10,8 @@ interface UseMapResponsivenessResult {
 
 export const useMapResponsiveness = (): UseMapResponsivenessResult => {
     const [isMobile, setIsMobile] = useState<boolean>(false);
-    const [defaultZoom, setDefaultZoom] = useState<number>(2.3);
-    const [countryZoom, setCountryZoom] = useState<number>(3.5);
+    const [defaultZoom, setDefaultZoom] = useState<number>(3.2);
+    const [countryZoom, setCountryZoom] = useState<number>(4.5);
     const [legendVisible, setLegendVisible] = useState<boolean>(true);
 
     // Detect mobile devices and adjust zoom levels
@@ -22,16 +22,15 @@ export const useMapResponsiveness = (): UseMapResponsivenessResult => {
 
             // Adjust zoom levels based on screen size
             if (mobile) {
-                setDefaultZoom(1.8); // Zoomed out more on mobile
-                setCountryZoom(3.0); // Less zoom when selecting a country on mobile
-                setLegendVisible(false); // Hide legend by default on mobile
+                setDefaultZoom(2.6);
+                setCountryZoom(4.0);
+                setLegendVisible(false);
             } else {
-                setDefaultZoom(2.3); // Default zoom for desktop
-                setCountryZoom(3.5); // Default country zoom for desktop
-                setLegendVisible(true); // Always show legend on desktop
+                setDefaultZoom(3.2);
+                setCountryZoom(4.5);
+                setLegendVisible(true);
             }
         };
-
         // Check on initial load
         checkMobile();
 

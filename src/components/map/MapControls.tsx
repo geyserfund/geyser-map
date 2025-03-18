@@ -13,19 +13,35 @@ export const SetMapView: React.FC<SetMapViewProps> = ({ center, zoom }) => {
   const prevCenterRef = useRef<[number, number] | null>(null);
   const prevZoomRef = useRef<number | null>(null);
   const viewSetRef = useRef<boolean>(false);
+  const initialRenderRef = useRef<boolean>(true);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Set the initial view only once
+  useEffect(() => {
+    if (initialRenderRef.current) {
+      console.log(`Initial map view set to center: [${center[0]}, ${center[1]}], zoom: ${zoom}`);
+      map.setView(center, zoom, { animate: false });
+      initialRenderRef.current = false;
+      prevCenterRef.current = center;
+      prevZoomRef.current = zoom;
+      viewSetRef.current = true;
+    }
+  }, [map, center, zoom]);
   
   // Track changes to center and zoom
   useEffect(() => {
-    // If center or zoom has changed, mark that we need to set the view
-    if (
-      !prevCenterRef.current || 
-      !prevZoomRef.current || 
-      prevCenterRef.current[0] !== center[0] || 
-      prevCenterRef.current[1] !== center[1] || 
-      prevZoomRef.current !== zoom
-    ) {
-      console.log(`Center or zoom changed: [${center[0]}, ${center[1]}], zoom: ${zoom}`);
+    // Skip the initial render since we handle it separately
+    if (initialRenderRef.current) return;
+    
+    // Only update view when a country is selected or deselected (significant change)
+    const isSignificantChange = 
+      (prevCenterRef.current && 
+       (Math.abs(prevCenterRef.current[0] - center[0]) > 5 || 
+        Math.abs(prevCenterRef.current[1] - center[1]) > 5)) ||
+      (prevZoomRef.current && Math.abs(prevZoomRef.current - zoom) > 0.5);
+    
+    if (isSignificantChange) {
+      console.log(`Significant change detected: [${center[0]}, ${center[1]}], zoom: ${zoom}`);
       prevCenterRef.current = center;
       prevZoomRef.current = zoom;
       viewSetRef.current = false;
@@ -40,8 +56,11 @@ export const SetMapView: React.FC<SetMapViewProps> = ({ center, zoom }) => {
   
   // Set the map view when needed
   useEffect(() => {
+    // Skip the initial render since we handle it separately
+    if (initialRenderRef.current) return;
+    
     if (!viewSetRef.current && prevCenterRef.current && prevZoomRef.current) {
-      console.log(`Setting map view to center: [${center[0]}, ${center[1]}], zoom: ${zoom}`);
+      console.log(`Updating map view to center: [${center[0]}, ${center[1]}], zoom: ${zoom}`);
       
       // Disable interactions temporarily
       map.touchZoom.disable();
@@ -50,8 +69,8 @@ export const SetMapView: React.FC<SetMapViewProps> = ({ center, zoom }) => {
       map.keyboard.disable();
       map.dragging.disable();
       
-      // Set the view without animation
-      map.setView(center, zoom, { animate: false, duration: 0 });
+      // Set the view with animation for better user experience
+      map.setView(center, zoom, { animate: true, duration: 0.5 });
       
       // Mark that we've set the view for this center/zoom combination
       viewSetRef.current = true;
@@ -69,7 +88,7 @@ export const SetMapView: React.FC<SetMapViewProps> = ({ center, zoom }) => {
         map.invalidateSize();
         
         timeoutRef.current = null;
-      }, 150);
+      }, 600);
     }
     
     // Clean up timeout on unmount
